@@ -33,6 +33,40 @@ Over git — the fallback, for a machine that cannot reach the registry:
 
 No `.npmrc` is needed for this form, and it installs the same tree at a pinned tag.
 
+**Once the repository is private, git has to sign in to GitHub, and npm does not do it.** npm
+fetches this form with git, over HTTPS and then over SSH, so a machine whose SSH key is on an
+account with access installs it as it is. Anywhere else, a developer hands git the GitHub CLI's
+login, once per machine:
+
+```bash
+gh auth login
+gh auth setup-git
+```
+
+`setup-git` points git at the GitHub CLI for `github.com`; it stores no token of its own.
+
+In GitHub Actions the workflow's own token reads only its own repository. A consumer's workflow
+needs a token that can read this one — a fine-grained personal access token with read access
+to its contents, kept as a secret — and gives it to git, not npm:
+
+```yaml
+- uses: actions/checkout@v5
+  with:
+    persist-credentials: false
+- run: gh auth setup-git
+  env:
+    GH_TOKEN: ${{ secrets.DEV_KIT_TOKEN }}
+- run: npm ci
+  env:
+    GH_TOKEN: ${{ secrets.DEV_KIT_TOKEN }}
+```
+
+`GH_TOKEN` is the GitHub CLI's own variable and wins over `GITHUB_TOKEN`, so git gets the
+secret while npm keeps the workflow's token for GitHub Packages. **Without
+`persist-credentials: false` the install fails:** checkout leaves the workflow's token in the
+repository's git config, git sends it ahead of any credential helper, and GitHub answers
+"Repository not found".
+
 ## Sections
 
 | Section | For | Brings |
@@ -153,7 +187,8 @@ source node_modules/dev-kit/common/lib.sh
 
 The token in that line matters only to a project with packages on GitHub Packages, below, and
 is the one place its source is restated: `with_github_token` cannot be called before the kit is
-installed. Without a token, a project that needs one fails here with npm's `401`.
+installed. Without a token, a project that needs one fails here with npm's `401`. The line
+gives git nothing: a private kit installed over git needs git signed in first, as under Install.
 
 `need_node` reads `DEVKIT_NODE_MIN` (default `24`) and `DEVKIT_NODE_HINT`. `need_env` returns
 non-zero when it created `.env`, so a caller can print its own notes only on the first run.
