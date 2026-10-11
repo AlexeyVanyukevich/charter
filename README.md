@@ -12,7 +12,7 @@ registry is an unrelated project and is not this one.
 From the private registry — the normal way:
 
 ```json
-"devDependencies": { "dev-kit": "^2.2.0" }
+"devDependencies": { "dev-kit": "^2.2.1" }
 ```
 
 with the registry in the consuming project's `.npmrc`:
@@ -28,7 +28,7 @@ one upstream is built for.
 Over git — the fallback, for a machine that cannot reach the registry:
 
 ```json
-"devDependencies": { "dev-kit": "github:AlexeyVanyukevich/dev-kit#v2.2.0" }
+"devDependencies": { "dev-kit": "github:AlexeyVanyukevich/dev-kit#v2.2.1" }
 ```
 
 No `.npmrc` is needed for this form, and it installs the same tree at a pinned tag.
