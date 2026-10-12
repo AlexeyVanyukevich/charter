@@ -97,6 +97,58 @@ need_deps() {
   fi
 }
 
+# Plugins are turned on in the repository's .claude/settings.json and downloaded per machine, so
+# a fresh clone has the first and not the second. This installs, at project scope, each enabled
+# plugin this machine lacks for this repository. A machine without Claude Code — CI among them —
+# has nothing to install into, and ./run must not fail over that.
+need_plugins() {
+  [ -f .claude/settings.json ] || return 0
+  local wanted
+  wanted="$(node -e '
+    const settings = JSON.parse(require("fs").readFileSync(".claude/settings.json", "utf8"))
+    for (const [id, on] of Object.entries(settings.enabledPlugins ?? {})) if (on === true) console.log(id)
+  ' 2>/dev/null)" || die ".claude/settings.json is not valid JSON." "Fix it, then run this again."
+  [ -n "$wanted" ] || return 0
+
+  if ! command -v claude >/dev/null 2>&1; then
+    note "Claude Code is not installed; skipping its plugins"
+    return 0
+  fi
+
+  # Installed for this repository means a project-scope entry whose projectPath is this directory.
+  # Both sides go through realpath, because a temp or symlinked path is recorded resolved.
+  local missing
+  # shellcheck disable=SC2086
+  missing="$(claude plugin list --json | node -e '
+    const fs = require("fs")
+    const real = (p) => { try { return fs.realpathSync(p) } catch { return p } }
+    const here = real(".")
+    const have = new Set(JSON.parse(fs.readFileSync(0, "utf8"))
+      .filter((p) => p.scope === "project" && real(p.projectPath) === here)
+      .map((p) => p.id))
+    for (const id of process.argv.slice(1)) if (!have.has(id)) console.log(id)
+  ' $wanted)" || die "Could not list Claude Code's installed plugins." "Run: claude plugin list"
+  [ -n "$missing" ] || return 0
+
+  step "Installing Claude Code plugins"
+  # A machine where Claude Code never ran interactively has not registered the official marketplace.
+  if grep -q '@claude-plugins-official$' <<< "$missing" &&
+    ! claude plugin marketplace list --json | node -e '
+      const list = JSON.parse(require("fs").readFileSync(0, "utf8"))
+      process.exit(list.some((m) => m.name === "claude-plugins-official") ? 0 : 1)
+    ' 2>/dev/null; then
+    claude plugin marketplace add anthropics/claude-plugins-official >/dev/null ||
+      die "Could not add Claude Code's official plugin marketplace." \
+        "Run: claude plugin marketplace add anthropics/claude-plugins-official"
+  fi
+  local id
+  while read -r id; do
+    claude plugin install "$id" --scope project >/dev/null ||
+      die "Could not install the Claude Code plugin $id." "Run: claude plugin install $id --scope project"
+    ok "$id"
+  done <<< "$missing"
+}
+
 # Copies the template and says so. Whatever else the project wants to tell the reader about the
 # new file — which port it points at, which secret is still blank — is the caller's to `note`,
 # because only the caller knows.
