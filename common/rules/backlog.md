@@ -7,12 +7,13 @@ commit message, not a bare `TODO`: those are read once or never, and the finding
 **Record what is outside the task; do not fix it in passing.** A fix nobody asked for is an
 unreviewed change inside an unrelated commit. If it blocks the task, it is part of the task.
 
-One entry per finding, newest first:
+One entry per finding, newest first. The entry below illustrates the format; its paths are
+invented:
 
-    ## Cancelling a paid booking skips the refund
-    - Where: `src/modules/booking/booking.service.ts`, `cancel()`
-    - Found: 2026-09-29, while adding booking notes
-    - Problem: status becomes `cancelled`; no refund row is written. Cancel any paid booking.
+    ## Cancelling a paid order skips the refund
+    - Where: `src/modules/order/order.service.ts`, `cancel()`
+    - Found: 2026-09-29, while adding order notes
+    - Problem: status becomes `cancelled`; no refund row is written. Cancel any paid order.
     - Impact: every paid cancellation needs a manual refund
 
 **Write it for someone who was not there:** what is wrong, how to see it, what it costs. "Clean

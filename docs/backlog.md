@@ -101,17 +101,6 @@ share.
   which the template neither allows nor forbids.
 - Impact: a new module may follow either form, and two projects may differ. Say which is meant.
 
-## The backlog rule's example borrows a consuming project's path
-
-- Where: `common/rules/backlog.md`, the example entry, lines 12–16
-- Found: 2026-10-12, by the prompt audit of this repository
-- Priority: P6 — low; pinning the entry format is legitimate
-- Problem: the example is not labelled as an illustration, and its path,
-  `src/modules/booking/booking.service.ts`, comes from one consuming project, which the writing
-  rule's preference for roles over names argues against.
-- Impact: a session in an unrelated project reads a domain it does not have. Label the example
-  illustrative, or give it a neutral path.
-
 ## This repository does not follow its own documentation rule
 
 - Where: the repository root; `docs/superpowers/plans/`
