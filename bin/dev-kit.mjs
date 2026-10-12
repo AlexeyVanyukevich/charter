@@ -40,6 +40,14 @@ function parse(argv) {
 
 // Every refusal happens here, before anything is written.
 function check({ sections, workspace }) {
+  // Run anywhere else, the settings would land where no session reads them and the imports
+  // would point at a node_modules that is not there. The root is where the kit is installed.
+  if (!existsSync(join('node_modules', 'dev-kit'))) {
+    fail(
+      'This is not the repository root: there is no node_modules/dev-kit here.',
+      'Run dev-kit init at the repository root, where the kit is installed.',
+    )
+  }
   const valid = readdirSync(kit)
     .filter((name) => existsSync(join(kit, name, 'rules.md')))
     .sort()
