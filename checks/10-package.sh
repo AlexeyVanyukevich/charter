@@ -16,6 +16,7 @@ expect_packed() {
 }
 
 expect_packed 'package.json'
+expect_packed 'bin/dev-kit.mjs'
 
 # Every file in a section ships. A file left out of `files` still arrives over git, which
 # installs the whole repository, and is missing only from the registry tarball — the one
@@ -29,9 +30,9 @@ stale="$(grep -rnE 'dev-kit/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' \
   common backend ui testing 2>/dev/null || true)"
 [ -z "$stale" ] || { echo "  ✗ shipped files still name 1.x paths:"; echo "$stale"; exit 1; }
 
-# Only the four sections ship, plus what npm always adds. A 1.x directory left in `files`
-# would ship a second, stale copy of a rule.
-outside="$(grep -vE '^(common|backend|ui|testing)/|^package\.json$|^README\.md$' \
+# Only the four sections and the onboarding executable ship, plus what npm always adds. A 1.x
+# directory left in `files` would ship a second, stale copy of a rule.
+outside="$(grep -vE '^(bin|common|backend|ui|testing)/|^package\.json$|^README\.md$' \
   <<< "$packed" || true)"
 [ -z "$outside" ] || {
   echo "  ✗ the package ships files outside the sections:"
