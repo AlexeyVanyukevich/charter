@@ -1,8 +1,9 @@
 # Code layout
 
-Modules are organised by entity, and each splits into four files:
+Modules are organised by entity, and each splits into four files. The directory takes the
+plural and the files the singular — `modules/issues/issue.routes.ts`:
 
-    src/modules/<entity>/
+    src/modules/<entities>/
       <entity>.routes.ts       HTTP: the route table and its hooks
       <entity>.schemas.ts      TypeBox schemas, shared by validation and the API document
       <entity>.service.ts      business rules and validation

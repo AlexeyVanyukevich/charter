@@ -209,7 +209,7 @@ project needs:
 | common | `backlog.md` | Findings left unfixed go in `docs/backlog.md`, one entry each, deleted by the fix |
 | backend | `typescript.md` | NodeNext's `.js` imports, the `typebox` package, the one accepted `any` |
 | backend | `http.md` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
-| backend | `layout.md` | `modules/<entity>/` and its four files; `shared/`, `db/` |
+| backend | `layout.md` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |
 | backend | `database-tests.md` | Integration tests against a real PostgreSQL, started by Testcontainers |
 | ui | `typescript.md` | Bundler resolution: no extension on relative imports |
 | testing | `testing.md` | Tests first, datasets over test bodies, derived facts, where tests live |

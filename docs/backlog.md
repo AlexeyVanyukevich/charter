@@ -62,16 +62,6 @@ turning it on.
 - Impact: spec names may drift between projects. If it is fixed, name the spec
   `YYYY-MM-DD-<topic>-design.md` in the rule and keep the plan as it is.
 
-## The layout rule does not say whether module names are singular or plural
-
-- Where: `backend/rules/layout.md`, lines 5–9, `src/modules/<entity>/<entity>.routes.ts`
-- Found: 2026-10-12, by the prompt audit of a consuming project
-- Priority: P6 — low; both readings fit the rule today
-- Problem: the template uses one placeholder for the directory and the files. A consuming project
-  names directories in the plural and files in the singular (`modules/issues/issue.routes.ts`),
-  which the template neither allows nor forbids.
-- Impact: a new module may follow either form, and two projects may differ. Say which is meant.
-
 ## This repository does not follow its own documentation rule
 
 - Where: the repository root; `docs/superpowers/plans/`
