@@ -13,20 +13,17 @@ turning it on.
 
 ## Rules a tool could enforce are enforced only by prose
 
-- Where: `common/rules/commits.md` (subject format, no body, no `Co-Authored-By` trailer);
+- Where: `common/rules/commits.md` (subject format, no body, no trailer);
   `common/rules/typescript.md` (no `any`)
 - Found: 2026-10-12, while reviewing the rules against Anthropic's guidance on instruction size;
   confirmed by a consuming project's prompt audit, which found no commit-msg hook there
 - Priority: P4 — more reliable than prose, and costs a new module plus its check
 - Problem: Claude Code reads instructions as context, not configuration it must obey; "to block
   an action regardless of what Claude decides, use a PreToolUse hook"
-  (https://code.claude.com/docs/en/memory). Claude Code also asks for a `Co-Authored-By` trailer
-  on every commit by default, so that rule competes with the harness's own instruction in every
-  session.
-- Impact: a violation lands without anything failing. Turning commit attribution off in Claude
-  Code's settings removes the competing instruction at no cost. A commit-msg hook and a lint rule
-  against explicit `any` would catch the rest; each is a new module with its own check, so a
-  minor release.
+  (https://code.claude.com/docs/en/memory). Nothing fails when a commit message or a type breaks
+  the rule.
+- Impact: a violation lands without anything failing. A commit-msg hook and a lint rule against
+  explicit `any` would catch it; each is a new module with its own check, so a minor release.
 
 ## Rules for particular tasks and files load in every session
 
