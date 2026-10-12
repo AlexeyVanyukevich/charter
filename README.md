@@ -71,9 +71,9 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 
 | Section | For | Brings |
 | ------- | --- | ------ |
-| `common` | every project | six rules, the TypeScript base, Prettier, the `./run` skeleton, ignore files |
+| `common` | every project | six rules, the TypeScript base, Prettier, the `./run` skeleton, ignore files, the `superpowers` plugin |
 | `backend` | Node services | four rules, the NodeNext tsconfig |
-| `ui` | bundled browser applications | one rule, the browser tsconfig |
+| `ui` | bundled browser applications | one rule, the browser tsconfig, the `frontend-design` and `playwright` plugins |
 | `testing` | any project with a test suite | one rule |
 
 **No section loads another.** A backend project with tests writes `common`, `backend` and
@@ -100,6 +100,40 @@ Start sessions at the repository root. A session started inside a workspace trea
 
 Loading all four at the root is the obvious move and the wrong one: every session would read
 both, and the rules budget assumes no session does.
+
+## Onboarding a project
+
+Once the kit is installed, one command turns on the Claude Code plugins a project's sections
+need and imports their rules:
+
+```bash
+npx dev-kit init common testing
+```
+
+| Section | Turns on |
+| ------- | -------- |
+| `common` | `superpowers` |
+| `ui` | `frontend-design`, `playwright` |
+
+The plugins go in the root `.claude/settings.json`, at project scope: they load in this
+repository's sessions and in no other. Commit the file. The imports go in `CLAUDE.md`. A
+section's plugins are listed in its `plugins.json`, and a section without one brings none.
+
+A repository with a server and a web workspace runs it once per directory. The imports land in
+each workspace's `CLAUDE.md`, climbing back to the root's `node_modules`; the plugins always
+land in the root's settings, because Claude Code enables a plugin per repository:
+
+```bash
+npx dev-kit init common testing
+npx dev-kit init backend --workspace server
+npx dev-kit init ui --workspace web
+```
+
+Running it again adds only what is missing. A plugin set to `false` stays off. `backend` and
+`ui` in one directory is refused, for the reason given above.
+
+**A committed plugin is turned on, not downloaded.** Each clone installs it once:
+`need_plugins`, in the `./run` frame below, does that, and `init` runs it before it finishes.
 
 ## The modules
 
@@ -172,8 +206,8 @@ source node_modules/dev-kit/common/lib.sh
 ```
 
 Defines `step`, `ok`, `note`, `die`, `load_env_file`, `need_docker`, `need_node`, `need_deps`,
-`need_env` and `with_github_token`, plus the colour variables. Sourcing is inert: no shell options set, no
-directory changed, nothing run.
+`need_plugins`, `need_env` and `with_github_token`, plus the colour variables. Sourcing is
+inert: no shell options set, no directory changed, nothing run.
 
 **`./run` is what installs dependencies, so it cannot source out of `node_modules` before the
 kit is there.** Keep a short bootstrap *above* the `source` line, and test for the file rather
@@ -194,6 +228,20 @@ gives git nothing: a private kit installed over git needs git signed in first, a
 non-zero when it created `.env`, so a caller can print its own notes only on the first run.
 **Under `set -e` a bare `need_env` therefore ends the script on exactly that run** — call it as
 `need_env || note "…"`.
+
+`need_plugins` reads the settings with `node`, so it comes after `need_node`; beside
+`need_deps` is the natural place:
+
+```bash
+need_node
+need_deps
+need_plugins
+```
+
+It installs, at project scope, each plugin `.claude/settings.json` turns on and this machine
+lacks for the repository, registering the official marketplace first on a machine where Claude
+Code has never run. With nothing missing it prints nothing. Without Claude Code — CI — it notes
+the skip and returns zero.
 
 The scenarios stay in each project. Only the frame is shared.
 
