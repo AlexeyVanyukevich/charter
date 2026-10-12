@@ -143,7 +143,8 @@ need_plugins() {
   fi
   local id
   while read -r id; do
-    claude plugin install "$id" --scope project >/dev/null ||
+    # No stdin: the loop's own input is the list of ids still to install.
+    claude plugin install "$id" --scope project </dev/null >/dev/null ||
       die "Could not install the Claude Code plugin $id." "Run: claude plugin install $id --scope project"
     ok "$id"
   done <<< "$missing"

@@ -112,6 +112,7 @@ echo "$*" >> "$CLAUDE_LOG"
 case "$*" in
   'plugin list --json') printf '%s' "${FAKE_INSTALLED:-[]}" ;;
   'plugin marketplace list --json') printf '%s' "${FAKE_MARKETPLACES:-[]}" ;;
+  'plugin install '*) if [ -n "${FAKE_READS_STDIN:-}" ]; then cat >/dev/null; fi ;;
 esac
 FAKE
 chmod +x "$bin/claude"
@@ -156,6 +157,15 @@ result="$(cd "$project" && source "$lib" && PATH="$bin:$real_path" \
   need_plugins)"
 [ -z "$result" ] || { echo "  ✗ need_plugins printed '$result' with nothing to install"; exit 1; }
 grep -q 'install' "$CLAUDE_LOG" && { echo "  ✗ need_plugins installed with nothing missing"; exit 1; }
+
+# Each install runs with no stdin: a claude that reads it — a confirmation prompt — would
+# otherwise consume the ids still waiting in the loop, and those plugins would silently not install.
+: > "$CLAUDE_LOG"
+( cd "$project" && source "$lib" && PATH="$bin:$real_path" FAKE_READS_STDIN=1 \
+  FAKE_MARKETPLACES='[{"name":"claude-plugins-official"}]' need_plugins ) >/dev/null ||
+  { echo "  ✗ need_plugins failed with a claude that reads stdin"; exit 1; }
+[ "$(grep -c '^plugin install' "$CLAUDE_LOG")" = 2 ] ||
+  { echo "  ✗ an install that read stdin swallowed the remaining plugins"; cat "$CLAUDE_LOG"; exit 1; }
 
 # No Claude Code — CI — is a note and a zero, never a failure. Node stays on PATH; claude does not.
 mkdir -p "$tmp/nodeonly"
