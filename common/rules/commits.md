@@ -1,19 +1,7 @@
 # Commits
 
-[Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`.
-
-| Type       | Use for                                                             |
-| ---------- | ------------------------------------------------------------------- |
-| `feat`     | New functionality a user can see or an API consumer can call        |
-| `fix`      | Bug fix                                                             |
-| `docs`     | Documentation only                                                  |
-| `test`     | Adding or reworking tests without touching production code          |
-| `refactor` | Neither adds behaviour nor fixes a bug                              |
-| `perf`     | Performance improvement                                             |
-| `build`    | Build system and dependencies                                       |
-| `ci`       | CI/CD configuration                                                 |
-| `chore`    | Maintenance that fits nothing else                                  |
-| `revert`   | Reverting a previous commit                                         |
+[Conventional Commits](https://www.conventionalcommits.org/): `type(scope): subject`, with
+`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore` or `revert`.
 
 Pick the type by the *intent* of the change, not the file extension. A test added as part of a
 new endpoint belongs to that endpoint's `feat` commit; `test` is for commits whose whole point
