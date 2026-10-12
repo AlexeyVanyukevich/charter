@@ -11,19 +11,6 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in the projects onboarded before `common` stopped
 turning it on.
 
-## The documentation rule and the plugin's brainstorming skill disagree on what gets a spec
-
-- Where: `common/rules/documentation.md`, lines 6–8; against the `superpowers` skill
-  `brainstorming`, lines 71–80
-- Found: 2026-10-12, by the prompt audits of a consuming project and of this repository
-- Priority: P3 — needs a decision before it needs an edit
-- Problem: the rule says every slice gets a spec and a plan, and the spec is approved before code.
-  The skill's "bounded" path writes neither. Whether a bounded one-file change is a slice is
-  stated nowhere; one consuming project's archive holds specs even for small slices, so in
-  practice the rule has won so far.
-- Impact: a session choosing the bounded path skips the documents the rule requires, or one
-  following the rule writes a spec for a one-line change. Say in the rule which it is.
-
 ## Rules a tool could enforce are enforced only by prose
 
 - Where: `common/rules/commits.md` (subject format, no body, no `Co-Authored-By` trailer);
