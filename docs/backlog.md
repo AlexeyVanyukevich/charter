@@ -8,24 +8,8 @@ Each entry also carries a priority, P1 first. The entries below came out of one 
 prompt audits that followed it, so they are ordered by priority rather than by date.
 
 Some entries concern the `superpowers` plugin rather than the kit. They are recorded here because
-the plugin loads beside the kit in every consuming project, and this is the one backlog they all
-share.
-
-## The `superpowers` plugin's session-start text makes skills fire where they do not fit
-
-- Where: the plugin's `hooks/session-start`, which injects `skills/using-superpowers/SKILL.md`
-  wrapped in `<EXTREMELY_IMPORTANT>` (lines 10–16 and 35–50 of the skill)
-- Found: 2026-10-12, by the prompt audits of every consuming project; all of them report it
-- Priority: P1 — every session in every project, and the fix is a setting, not a release
-- Problem: "If you think there is even a 1% chance a skill might apply … you ABSOLUTELY MUST
-  invoke the skill", "YOU DO NOT HAVE A CHOICE", and a rule to invoke skills before answering,
-  asking or reading anything. Current models follow instructions closely, so this register makes
-  process skills fire on read-only and one-line tasks; one audit was itself told to invoke a skill
-  before starting. The text is skill body, not a routing description, so the urgency that
-  descriptions may carry does not excuse it.
-- Impact: extra skill loads, and the tokens they cost, in every session on the machine. The
-  plugin cannot be edited locally — an update overwrites it. Disable its session-start hook or
-  the plugin, or raise it with the plugin's maintainers.
+the plugin still loads in this repository and in the projects onboarded before `common` stopped
+turning it on.
 
 ## The documentation rule and the plugin's brainstorming skill disagree on what gets a spec
 

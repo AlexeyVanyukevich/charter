@@ -37,7 +37,6 @@ p="$(project fresh)"
 
 expected='{
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true,
     "frontend-design@claude-plugins-official": true,
     "playwright@claude-plugins-official": true
   }
@@ -50,7 +49,7 @@ expected='@node_modules/dev-kit/common/rules.md
 [ "$(cat "$p/CLAUDE.md")" = "$expected" ] ||
   { echo "  ✗ CLAUDE.md is not the two imports:"; cat "$p/CLAUDE.md"; exit 1; }
 
-grep -qx 'plugin install superpowers@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
+grep -qx 'plugin install playwright@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
   fail "init did not run need_plugins"
 
 # ── a second run changes nothing ───────────────────────────────────────────────
@@ -64,9 +63,10 @@ cmp -s "$p/CLAUDE.md" "$tmp/claude.before" || fail "a second run changed CLAUDE.
 # Nothing to add means the file is not rewritten, so a project's own formatting survives.
 p="$(project formatted)"
 mkdir -p "$p/.claude"
-echo '{"enabledPlugins":{"superpowers@claude-plugins-official":true}}' > "$p/.claude/settings.json"
+echo '{"enabledPlugins":{"frontend-design@claude-plugins-official":true,"playwright@claude-plugins-official":true}}' \
+  > "$p/.claude/settings.json"
 cp "$p/.claude/settings.json" "$tmp/settings.before"
-( cd "$p" && node "$cli" init common ) >/dev/null || fail "init with its plugin already set failed"
+( cd "$p" && node "$cli" init ui ) >/dev/null || fail "init with its plugins already set failed"
 cmp -s "$p/.claude/settings.json" "$tmp/settings.before" ||
   fail "init rewrote settings.json with nothing to add"
 
@@ -75,13 +75,13 @@ cmp -s "$p/.claude/settings.json" "$tmp/settings.before" ||
 # An opt-out survives, and so does every key init does not own.
 p="$(project merge)"
 mkdir -p "$p/.claude"
-echo '{ "model": "opus", "enabledPlugins": { "superpowers@claude-plugins-official": false } }' \
+echo '{ "model": "opus", "enabledPlugins": { "playwright@claude-plugins-official": false } }' \
   > "$p/.claude/settings.json"
-( cd "$p" && node "$cli" init common ) >/dev/null || fail "init into existing settings failed"
+( cd "$p" && node "$cli" init ui ) >/dev/null || fail "init into existing settings failed"
 node -e '
   const s = require(process.argv[1])
   if (s.model !== "opus") throw new Error("model was dropped")
-  if (s.enabledPlugins["superpowers@claude-plugins-official"] !== false) throw new Error("opt-out was overwritten")
+  if (s.enabledPlugins["playwright@claude-plugins-official"] !== false) throw new Error("opt-out was overwritten")
 ' "$p/.claude/settings.json" 2>/dev/null || fail "init changed a value already set in settings.json"
 
 # An existing CLAUDE.md with no final newline gets its imports on their own lines.

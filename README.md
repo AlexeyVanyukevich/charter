@@ -94,7 +94,7 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 
 | Section | For | Brings |
 | ------- | --- | ------ |
-| `common` | every project | six rules, the TypeScript base, Prettier, the `./run` skeleton, ignore files, the `superpowers` plugin |
+| `common` | every project | six rules, the TypeScript base, Prettier, the `./run` skeleton, ignore files |
 | `backend` | Node services | four rules, the NodeNext tsconfig |
 | `ui` | bundled browser applications | one rule, the browser tsconfig, the `frontend-design` and `playwright` plugins |
 | `testing` | any project with a test suite | one rule |
@@ -135,8 +135,11 @@ npx dev-kit init common testing
 
 | Section | Turns on |
 | ------- | -------- |
-| `common` | `superpowers` |
 | `ui` | `frontend-design`, `playwright` |
+
+`common` turns on nothing. It no longer brings `superpowers`: that plugin's session-start text
+tells every session to load a skill on "even a 1% chance", so process skills fire on one-line
+tasks in every project. A project that wants it turns it on itself.
 
 The plugins go in the root `.claude/settings.json`, at project scope: they load in this
 repository's sessions and in no other. Commit the file. The imports go in `CLAUDE.md`. A
