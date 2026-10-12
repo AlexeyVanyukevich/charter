@@ -27,19 +27,6 @@ share.
   plugin cannot be edited locally — an update overwrites it. Disable its session-start hook or
   the plugin, or raise it with the plugin's maintainers.
 
-## The commits rule forbids the merge the plugin's finishing skill performs
-
-- Where: `common/rules/commits.md`, "Merge by rebase — never squash, never a merge commit";
-  against the `superpowers` skill `finishing-a-development-branch`, lines 86–96
-- Found: 2026-10-12, by the prompt audits of every consuming project; all of them report it
-- Priority: P2 — a prohibition, crossed by an option offered at the end of every branch
-- Problem: the skill's "merge locally" option runs `git merge <feature-branch>`. On a branch
-  `main` has moved past, that writes the merge commit the rule forbids. The rule should win as
-  the narrower instruction, but nothing says so, and each merge depends on the session
-  reconciling the two.
-- Impact: a merge commit on `main` in any consuming project. One sentence in the rule — "merging
-  locally means `git rebase main`, then a fast-forward" — removes the ambiguity, as a patch.
-
 ## The documentation rule and the plugin's brainstorming skill disagree on what gets a spec
 
 - Where: `common/rules/documentation.md`, lines 6–8; against the `superpowers` skill

@@ -21,7 +21,9 @@ not exist yet. Keep a module's tests in the commit that adds the module. Keep un
 apart: a dependency bump and a bug fix are two commits.
 
 **Merge by rebase — never squash, never a merge commit.** A squash folds commits that each tell
-one story into one, and both write a subject this rule forbids. `main` is the only long-lived
-branch and always passes. Work on a short-lived `<type>/<slug>` branch, typed as above, and keep
-it current by rebasing onto `main`, not by merging `main` in. A release is a `vX.Y.Z` tag on
-`main`, not a branch, on the `chore: release X.Y.Z` commit that bumps every copy of the version.
+one story into one, and both write a subject this rule forbids. Merging locally means rebasing
+the branch onto `main`, then `git merge --ff-only` — never a bare `git merge`, which writes a
+merge commit once `main` has moved. `main` is the only long-lived branch and always passes.
+Work on a short-lived `<type>/<slug>` branch, typed as above, and keep it current by rebasing
+onto `main`, not by merging `main` in. A release is a `vX.Y.Z` tag on `main`, not a branch, on
+the `chore: release X.Y.Z` commit that bumps every copy of the version.
