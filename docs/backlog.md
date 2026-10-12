@@ -3,3 +3,146 @@
 What is known to be wrong and not yet fixed, newest first. The rule for this file is the kit's
 own [`common/rules/backlog.md`](../common/rules/backlog.md): one entry per finding, deleted by
 the commit that fixes it.
+
+Each entry also carries a priority, P1 first. The entries below came out of one review and the
+prompt audits that followed it, so they are ordered by priority rather than by date.
+
+Some entries concern the `superpowers` plugin rather than the kit. They are recorded here because
+the plugin loads beside the kit in every consuming project, and this is the one backlog they all
+share.
+
+## The `superpowers` plugin's session-start text makes skills fire where they do not fit
+
+- Where: the plugin's `hooks/session-start`, which injects `skills/using-superpowers/SKILL.md`
+  wrapped in `<EXTREMELY_IMPORTANT>` (lines 10–16 and 35–50 of the skill)
+- Found: 2026-10-12, by the prompt audits of every consuming project; all of them report it
+- Priority: P1 — every session in every project, and the fix is a setting, not a release
+- Problem: "If you think there is even a 1% chance a skill might apply … you ABSOLUTELY MUST
+  invoke the skill", "YOU DO NOT HAVE A CHOICE", and a rule to invoke skills before answering,
+  asking or reading anything. Current models follow instructions closely, so this register makes
+  process skills fire on read-only and one-line tasks; one audit was itself told to invoke a skill
+  before starting. The text is skill body, not a routing description, so the urgency that
+  descriptions may carry does not excuse it.
+- Impact: extra skill loads, and the tokens they cost, in every session on the machine. The
+  plugin cannot be edited locally — an update overwrites it. Disable its session-start hook or
+  the plugin, or raise it with the plugin's maintainers.
+
+## The commits rule forbids the merge the plugin's finishing skill performs
+
+- Where: `common/rules/commits.md`, "Merge by rebase — never squash, never a merge commit";
+  against the `superpowers` skill `finishing-a-development-branch`, lines 86–96
+- Found: 2026-10-12, by the prompt audits of every consuming project; all of them report it
+- Priority: P2 — a prohibition, crossed by an option offered at the end of every branch
+- Problem: the skill's "merge locally" option runs `git merge <feature-branch>`. On a branch
+  `main` has moved past, that writes the merge commit the rule forbids. The rule should win as
+  the narrower instruction, but nothing says so, and each merge depends on the session
+  reconciling the two.
+- Impact: a merge commit on `main` in any consuming project. One sentence in the rule — "merging
+  locally means `git rebase main`, then a fast-forward" — removes the ambiguity, as a patch.
+
+## The documentation rule and the plugin's brainstorming skill disagree on what gets a spec
+
+- Where: `common/rules/documentation.md`, lines 6–8; against the `superpowers` skill
+  `brainstorming`, lines 71–80
+- Found: 2026-10-12, by the prompt audits of a consuming project and of this repository
+- Priority: P3 — needs a decision before it needs an edit
+- Problem: the rule says every slice gets a spec and a plan, and the spec is approved before code.
+  The skill's "bounded" path writes neither. Whether a bounded one-file change is a slice is
+  stated nowhere; one consuming project's archive holds specs even for small slices, so in
+  practice the rule has won so far.
+- Impact: a session choosing the bounded path skips the documents the rule requires, or one
+  following the rule writes a spec for a one-line change. Say in the rule which it is.
+
+## Rules a tool could enforce are enforced only by prose
+
+- Where: `common/rules/commits.md` (subject format, no body, no `Co-Authored-By` trailer);
+  `common/rules/typescript.md` (no `any`)
+- Found: 2026-10-12, while reviewing the rules against Anthropic's guidance on instruction size;
+  confirmed by a consuming project's prompt audit, which found no commit-msg hook there
+- Priority: P4 — more reliable than prose, and costs a new module plus its check
+- Problem: Claude Code reads instructions as context, not configuration it must obey; "to block
+  an action regardless of what Claude decides, use a PreToolUse hook"
+  (https://code.claude.com/docs/en/memory). Claude Code also asks for a `Co-Authored-By` trailer
+  on every commit by default, so that rule competes with the harness's own instruction in every
+  session.
+- Impact: a violation lands without anything failing. Turning commit attribution off in Claude
+  Code's settings removes the competing instruction at no cost. A commit-msg hook and a lint rule
+  against explicit `any` would catch the rest; each is a new module with its own check, so a
+  minor release.
+
+## Rules for particular tasks and files load in every session
+
+- Where: `backend/rules/http.md`, `layout.md`, `database-tests.md`;
+  `common/rules/documentation.md`; the example entry in `common/rules/backlog.md`
+- Found: 2026-10-12, while reviewing the rules against Anthropic's guidance on instruction size
+- Priority: P5 — the largest saving, and the most disruptive; do it once the 2.2.2 trim no longer
+  leaves room under the 225-line budget
+- Problem: an `@` import loads at launch, so splitting rules into files only organises them; it
+  saves nothing. The 59 backend lines matter only when Claude touches routes, module layout or
+  database tests. The slice-docs workflow and the backlog entry format matter only while doing
+  those tasks. Claude Code's docs send content like this to path-scoped rules (`.claude/rules/`
+  files with `paths:` frontmatter) or skills. `@` imports can deliver neither.
+- Impact: every backend session pays about a quarter of its rules budget for rules most tasks
+  never use. Moving them changes how the kit is delivered:
+  - consumers link the files into `.claude/rules/` and `.claude/skills/`, or the kit ships as a
+    Claude Code plugin;
+  - the live-session test in `checks/40-rules.sh`, which reads back `forbidden_origin` from
+    `http.md`, has to change;
+  - a rule moved into a skill loads only when Claude judges it relevant.
+
+  That is a minor or major release.
+
+## The documentation rule names specs differently from the plugin that writes them
+
+- Where: `common/rules/documentation.md`, lines 6–7
+- Found: 2026-10-12, by the prompt audit of every section's rules
+- Priority: P6 — low; two later audits rated it low or no conflict at all
+- Problem: the rule names specs and plans alike, `YYYY-MM-DD-<topic>.md`. The `superpowers`
+  brainstorming skill saves the spec as `YYYY-MM-DD-<topic>-design.md`, and this repository's
+  own specs carry that suffix. Against it: `<topic>` can absorb the suffix, and the rule is the
+  narrower instruction.
+- Impact: spec names may drift between projects. If it is fixed, name the spec
+  `YYYY-MM-DD-<topic>-design.md` in the rule and keep the plan as it is.
+
+## The layout rule does not say whether module names are singular or plural
+
+- Where: `backend/rules/layout.md`, lines 5–9, `src/modules/<entity>/<entity>.routes.ts`
+- Found: 2026-10-12, by the prompt audit of a consuming project
+- Priority: P6 — low; both readings fit the rule today
+- Problem: the template uses one placeholder for the directory and the files. A consuming project
+  names directories in the plural and files in the singular (`modules/issues/issue.routes.ts`),
+  which the template neither allows nor forbids.
+- Impact: a new module may follow either form, and two projects may differ. Say which is meant.
+
+## The backlog rule's example borrows a consuming project's path
+
+- Where: `common/rules/backlog.md`, the example entry, lines 12–16
+- Found: 2026-10-12, by the prompt audit of this repository
+- Priority: P6 — low; pinning the entry format is legitimate
+- Problem: the example is not labelled as an illustration, and its path,
+  `src/modules/booking/booking.service.ts`, comes from one consuming project, which the writing
+  rule's preference for roles over names argues against.
+- Impact: a session in an unrelated project reads a domain it does not have. Label the example
+  illustrative, or give it a neutral path.
+
+## This repository does not follow its own documentation rule
+
+- Where: the repository root; `docs/superpowers/plans/`
+- Found: 2026-10-12, while auditing the rules
+- Priority: P6 — low; the rules address consuming projects, and this one loads none of them
+- Problem: there is no `CLAUDE.md` importing the kit's rules, no `docs/architecture.md`, and both
+  executed plans still sit in `docs/superpowers/plans/` rather than `archive/`. The README fills
+  the architecture role, as the specs' banners say.
+- Impact: none until the kit is meant to follow itself. Decide whether it is; if so, add the
+  imports and do what the rule asks.
+
+## Two `superpowers` skills give opposite review ranges
+
+- Where: the `superpowers` skills `requesting-code-review`, line 28, and
+  `subagent-driven-development`, line 290
+- Found: 2026-10-12, by the prompt audit of this repository
+- Priority: P6 — the plugin's to fix; nothing here can
+- Problem: the first takes `BASE_SHA=$(git rev-parse HEAD~1)`. The second says never use
+  `HEAD~1`, because it drops every commit of a multi-commit task but the last.
+- Impact: a review following the first leaves a multi-commit task's earlier commits unreviewed.
+  Raise it with the plugin's maintainers.
