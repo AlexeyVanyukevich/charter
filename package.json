@@ -12,11 +12,15 @@
     "node": ">=24.0.0"
   },
   "files": [
+    "bin",
     "common",
     "backend",
     "ui",
     "testing"
   ],
+  "bin": {
+    "dev-kit": "bin/dev-kit.mjs"
+  },
   "exports": {
     "./package.json": "./package.json",
     "./common/tsconfig": "./common/tsconfig.json",
