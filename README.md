@@ -7,6 +7,28 @@ nothing from the others comes with them.
 This is never published to the public npm registry. A package called `dev-kit` on the public
 registry is an unrelated project and is not this one.
 
+## Starting a project
+
+In a new project's directory, paste this into the first Claude Code session, with the first line
+describing the project and `<kit source>` naming where the kit comes from — the private registry
+and its URL, or the git repository and its newest tag:
+
+```text
+Set this project up with dev-kit. It is a <backend | ui | backend and ui in workspaces>
+project<, with tests>.
+
+1. Create package.json if there is none. Install dev-kit as a devDependency from
+   <kit source>. If you cannot reach it, stop and ask me; do not install a package named
+   dev-kit from the public registry.
+2. Read node_modules/dev-kit/README.md and follow it for this project's sections:
+   `npx dev-kit init`, the tsconfig, the Prettier key, the ignore files, and a ./run frame
+   that calls need_node, need_deps and need_plugins.
+3. Run ./run, then show me every file you created or changed.
+```
+
+The prompt only installs the kit and hands over to the README that comes with it, so the steps
+it follows are always the installed release's.
+
 ## Install
 
 From the private registry — the normal way:
