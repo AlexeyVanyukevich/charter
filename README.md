@@ -34,7 +34,7 @@ it follows are always the installed release's.
 From the private registry — the normal way:
 
 ```json
-"devDependencies": { "dev-kit": "^2.2.1" }
+"devDependencies": { "dev-kit": "^2.2.2" }
 ```
 
 with the registry in the consuming project's `.npmrc`:
@@ -50,10 +50,11 @@ one upstream is built for.
 Over git — the fallback, for a machine that cannot reach the registry:
 
 ```json
-"devDependencies": { "dev-kit": "github:AlexeyVanyukevich/dev-kit#v2.2.1" }
+"devDependencies": { "dev-kit": "github:<owner>/dev-kit#vX.Y.Z" }
 ```
 
-No `.npmrc` is needed for this form, and it installs the same tree at a pinned tag.
+`<owner>` is the account that holds the repository, and `vX.Y.Z` the newest release tag. No
+`.npmrc` is needed for this form, and it installs the same tree at a pinned tag.
 
 **Once the repository is private, git has to sign in to GitHub, and npm does not do it.** npm
 fetches this form with git, over HTTPS and then over SSH, so a machine whose SSH key is on an
@@ -328,11 +329,12 @@ session load passes 225 lines.
 ## Releasing
 
 A release is one `chore: release X.Y.Z` commit on `main` and the `vX.Y.Z` tag on it. The commit
-changes the version in three places and nothing else: `"version"` in `package.json`, and the
-`^X.Y.Z` range and the `#vX.Y.Z` pin under Install, above.
+changes the version in two places and nothing else: `"version"` in `package.json`, and the
+`^X.Y.Z` range under Install, above. The git form names no version; whoever copies it picks the
+newest tag.
 
-**The README's pins move with every release, patch included.** A consumer copies the install
-line as written, and a pin left behind installs the previous release without anything failing.
+**The README's range moves with every release, patch included.** A consumer copies the install
+line as written, and a range left behind installs the previous release without anything failing.
 
 Pick the number by what a consumer has to do. Reworded rules or a fixed function: patch. A new
 rule, module or `lib.sh` function: minor. A path a consumer writes that moves or disappears:
