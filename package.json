@@ -1,6 +1,6 @@
 {
   "name": "dev-kit",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "Shared conventions and tooling configuration",
   "license": "UNLICENSED",
   "private": false,
