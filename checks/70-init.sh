@@ -25,8 +25,8 @@ chmod +x "$tmp/bin/claude"
 export CLAUDE_LOG="$tmp/claude.log"
 export PATH="$tmp/bin:$PATH"
 
-# A new, empty project directory.
-project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1"; echo "$tmp/$1"; }
+# A new project directory with the kit installed at its root, as init expects.
+project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/dev-kit"; echo "$tmp/$1"; }
 fail() { echo "  ✗ $*"; exit 1; }
 
 # ── a first run ───────────────────────────────────────────────────────────────
@@ -135,6 +135,15 @@ SETUP='mkdir .claude && echo "{" > .claude/settings.json' \
   refuses 'broken settings JSON' 'settings.json' init common
 SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.json' \
   refuses 'enabledPlugins as an array' 'enabledPlugins' init common
+
+# Run from a workspace instead of the root, init would write a .claude/ no session reads and an
+# import that loads nothing. Without the kit in node_modules here, it is not the root.
+p="$(project subdir)"
+mkdir -p "$p/server"
+before="$(cd "$p" && find . | sort)"
+err="$( (cd "$p/server" && node "$cli" init backend) 2>&1 >/dev/null )" && fail "init accepted a run from a subdirectory"
+grep -q 'repository root' <<< "$err" || fail "refusing a subdirectory, init did not point to the root: got '$err'"
+[ "$(cd "$p" && find . | sort)" = "$before" ] || fail "init wrote files while refusing a subdirectory"
 
 # ── reachable from a consumer ─────────────────────────────────────────────────
 
