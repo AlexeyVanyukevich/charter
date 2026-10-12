@@ -12,7 +12,7 @@ before="$(set +o)"
 source "$lib"
 [ "$(set +o)" = "$before" ] || { echo "  ✗ sourcing lib.sh changed shell options"; exit 1; }
 
-for fn in step ok note die load_env_file need_docker need_node need_deps need_env with_github_token; do
+for fn in step ok note die load_env_file need_docker need_node need_deps need_plugins need_env with_github_token; do
   declare -F "$fn" >/dev/null || { echo "  ✗ lib.sh does not define $fn"; exit 1; }
 done
 
@@ -103,4 +103,80 @@ result="$(cd "$tmp/public" && source "$lib" && unset GITHUB_TOKEN && PATH="$bin:
 grep -q 'npm install token=none' <<< "$result" ||
   { echo "  ✗ need_deps involved a token for a project that asks for none: got '$result'"; exit 1; }
 
-echo "  ✓ lib.sh sources inertly, defines its surface, keeps env precedence, reports a new .env, and hands a GitHub token only where one is asked for"
+# need_plugins installs, at project scope, the enabled plugins this machine lacks for this
+# repository. A stub claude answers from FAKE_INSTALLED and FAKE_MARKETPLACES and records every
+# call, so nothing here touches this machine's real plugins.
+cat > "$bin/claude" <<'FAKE'
+#!/usr/bin/env bash
+echo "$*" >> "$CLAUDE_LOG"
+case "$*" in
+  'plugin list --json') printf '%s' "${FAKE_INSTALLED:-[]}" ;;
+  'plugin marketplace list --json') printf '%s' "${FAKE_MARKETPLACES:-[]}" ;;
+esac
+FAKE
+chmod +x "$bin/claude"
+export CLAUDE_LOG="$tmp/claude.log"
+
+project="$tmp/plugins"
+mkdir -p "$project/.claude"
+printf '%s\n' '{ "enabledPlugins": {
+  "a@claude-plugins-official": true,
+  "b@claude-plugins-official": true,
+  "off@claude-plugins-official": false
+} }' > "$project/.claude/settings.json"
+here="$(cd "$project" && pwd -P)"
+
+# a is installed here, b only in another repository, so b alone is missing; the official
+# marketplace is not registered, so it is added first.
+: > "$CLAUDE_LOG"
+( cd "$project" && source "$lib" && PATH="$bin:$real_path" \
+  FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"$here\"},
+                   {\"id\":\"b@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"/elsewhere\"}]" \
+  need_plugins ) >/dev/null || { echo "  ✗ need_plugins failed installing a missing plugin"; exit 1; }
+grep -qx 'plugin install b@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
+  { echo "  ✗ need_plugins did not install the missing plugin"; cat "$CLAUDE_LOG"; exit 1; }
+grep -qE 'install (a|off)@' "$CLAUDE_LOG" &&
+  { echo "  ✗ need_plugins installed a plugin that was present or turned off"; exit 1; }
+grep -qx 'plugin marketplace add anthropics/claude-plugins-official' "$CLAUDE_LOG" ||
+  { echo "  ✗ need_plugins did not register the missing official marketplace"; exit 1; }
+
+# A registered marketplace is not added again.
+: > "$CLAUDE_LOG"
+( cd "$project" && source "$lib" && PATH="$bin:$real_path" \
+  FAKE_MARKETPLACES='[{"name":"claude-plugins-official"}]' need_plugins ) >/dev/null ||
+  { echo "  ✗ need_plugins failed with the marketplace registered"; exit 1; }
+grep -q 'marketplace add' "$CLAUDE_LOG" &&
+  { echo "  ✗ need_plugins added a marketplace that was already registered"; exit 1; }
+
+# Nothing missing: nothing installed, nothing printed.
+: > "$CLAUDE_LOG"
+result="$(cd "$project" && source "$lib" && PATH="$bin:$real_path" \
+  FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"$here\"},
+                   {\"id\":\"b@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"$here\"}]" \
+  need_plugins)"
+[ -z "$result" ] || { echo "  ✗ need_plugins printed '$result' with nothing to install"; exit 1; }
+grep -q 'install' "$CLAUDE_LOG" && { echo "  ✗ need_plugins installed with nothing missing"; exit 1; }
+
+# No Claude Code — CI — is a note and a zero, never a failure. Node stays on PATH; claude does not.
+mkdir -p "$tmp/nodeonly"
+ln -sf "$(command -v node)" "$tmp/nodeonly/node"
+result="$(cd "$project" && source "$lib" && PATH="$tmp/nodeonly" need_plugins)" ||
+  { echo "  ✗ need_plugins failed without Claude Code installed"; exit 1; }
+grep -q 'Claude Code' <<< "$result" ||
+  { echo "  ✗ need_plugins said nothing when skipping without Claude Code: got '$result'"; exit 1; }
+
+# No settings file: nothing to do, and claude is never asked.
+: > "$CLAUDE_LOG"
+( cd "$tmp/public" && source "$lib" && PATH="$bin:$real_path" need_plugins ) ||
+  { echo "  ✗ need_plugins failed in a project with no settings file"; exit 1; }
+[ -s "$CLAUDE_LOG" ] && { echo "  ✗ need_plugins called claude with no settings file"; exit 1; }
+
+# Broken JSON is a stop that names the file, not a Node stack trace.
+mkdir -p "$tmp/broken/.claude"
+echo '{' > "$tmp/broken/.claude/settings.json"
+err="$( (cd "$tmp/broken" && source "$lib" && PATH="$bin:$real_path" need_plugins) 2>&1 >/dev/null )" &&
+  { echo "  ✗ need_plugins accepted a settings file that is not JSON"; exit 1; }
+grep -q 'settings.json' <<< "$err" ||
+  { echo "  ✗ need_plugins failed on broken JSON without naming the file: got '$err'"; exit 1; }
+
+echo "  ✓ lib.sh sources inertly, defines its surface, keeps env precedence, reports a new .env, hands a GitHub token only where one is asked for, and installs only missing plugins"
