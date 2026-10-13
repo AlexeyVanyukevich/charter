@@ -19,7 +19,7 @@ printf -- '---\npaths:\n  - "src/*"\n  - "src/modules/**"\n---\n# Alpha\n\nAlpha
   > "$kit/domains/alpha/rules/a.md"
 printf -- '---\npaths:\n  - "**/*.ts"\n---\n# Beta\n' > "$kit/stacks/beta/rules/b.md"
 # CRLF, as a kit checked out on Windows has it, parses the same.
-printf -- '---\r\npaths:\r\n  - "tests/**"\r\n---\r\n# Beta two\r\n' > "$kit/stacks/beta/rules/c.md"
+printf -- '---\r\npaths:\r\n  - "tests/**"\r\n---\r\n# Beta two\r\n\r\nBeta two body.\r\n' > "$kit/stacks/beta/rules/c.md"
 echo '{}' > "$kit/stacks/gamma/oxlint.json"
 out="$p/.claude/rules/charter"
 
@@ -48,6 +48,9 @@ grep -qx '  - "server/src/modules/\*\*"' "$out/server/alpha/a.md" ||
 grep -qx '  - "server/api/\*\*/\*\.ts"' "$out/server/api/beta/b.md" ||
   fail "a nested workspace's patterns were not prefixed with its own path"
 grep -qx '  - "apps/web/tests/\*\*"' "$out/apps/web/beta/c.md" || fail "a CRLF rule was not read"
+# The body is copied byte for byte: its CRLF line endings survive; only the header is rewritten.
+printf -- '---\npaths:\n  - "apps/web/tests/**"\n---\n# Beta two\r\n\r\nBeta two body.\r\n' > "$tmp/c-expected.md"
+cmp -s "$tmp/c-expected.md" "$out/apps/web/beta/c.md" || { echo "  ✗ a CRLF rule's body was not copied unchanged:"; cat -v "$out/apps/web/beta/c.md"; exit 1; }
 [ ! -e "$out/@root" ] || fail "the root's mirror survived the root's removal from charter.json"
 
 # ── a second run writes nothing ───────────────────────────────────────────────
@@ -73,6 +76,14 @@ echo '# Own' > "$p/.claude/rules/own.md"
 run >/dev/null || fail "sync failed beside a project's own rule"
 [ -f "$p/.claude/rules/own.md" ] || fail "sync deleted a rule outside .claude/rules/charter/"
 
+# A symlink to a directory inside the mirror is removed as a link; the directory it names is left alone.
+mkdir "$p/outside-dir"
+echo keep > "$p/outside-dir/k.md"
+ln -s "$p/outside-dir" "$out/server/linkdir"
+run >/dev/null || fail "sync failed beside a symlink in the mirror"
+[ ! -L "$out/server/linkdir" ] || fail "a symlink in the mirror survived"
+[ -f "$p/outside-dir/k.md" ] || fail "sync followed a symlink out of the mirror and deleted through it"
+
 # ── run from a subdirectory, the hook's CLAUDE_PROJECT_DIR is the root ────────
 
 rm -rf "$out"
@@ -92,6 +103,12 @@ refuses() {
   [ "$(snapshot)" = "$before" ] || fail "sync wrote files while refusing $name"
 }
 
+# Every refusal below starts from a mirror that a run would change: a premature write adds
+# server/alpha/a.md, a premature prune deletes the stale file. Nothing may move.
+rm -rf "$out"
+mkdir -p "$out/server/stale"
+echo stale > "$out/server/stale/x.md"
+
 manifest '{ "workspaces": '
 refuses 'broken JSON' 'charter.json'
 manifest '{ "workspaces": [] }'
@@ -102,6 +119,8 @@ manifest '{ "workspaces": { "nope": ["alpha"] } }'
 refuses 'a missing workspace' 'not a directory'
 manifest '{ "workspaces": { "../elsewhere": ["alpha"] } }'
 refuses 'a workspace outside' 'outside'
+manifest '{ "workspaces": { "/": ["alpha"] } }'
+refuses 'an absolute workspace' 'outside'
 manifest '{ "workspaces": { "@root": ["alpha"] } }'
 refuses 'a workspace named @root' '@root'
 rm "$p/charter.json"
