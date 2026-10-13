@@ -12,7 +12,7 @@ before="$(set +o)"
 source "$lib"
 [ "$(set +o)" = "$before" ] || { echo "  ✗ sourcing lib.sh changed shell options"; exit 1; }
 
-for fn in step ok note die load_env_file need_docker need_node need_deps need_plugins need_env with_github_token; do
+for fn in step ok note die load_env_file need_docker need_node need_deps need_plugins need_hooks need_env with_github_token; do
   declare -F "$fn" >/dev/null || { echo "  ✗ lib.sh does not define $fn"; exit 1; }
 done
 
