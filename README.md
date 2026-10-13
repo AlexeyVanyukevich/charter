@@ -34,7 +34,7 @@ it follows are always the installed release's.
 From the private registry — the normal way:
 
 ```json
-"devDependencies": { "dev-kit": "^2.2.2" }
+"devDependencies": { "dev-kit": "^2.4.0" }
 ```
 
 with the registry in the consuming project's `.npmrc`:
@@ -423,7 +423,8 @@ changes the version in two places and nothing else: `"version"` in `package.json
 newest tag.
 
 **The README's range moves with every release, patch included.** A consumer copies the install
-line as written, and a range left behind installs the previous release without anything failing.
+line as written, and a range left behind installs the previous release without anything failing
+for them. `./check 60` fails until the range matches `"version"`.
 
 Pick the number by what a consumer has to do. Reworded rules or a fixed function: patch. A new
 rule, module or `lib.sh` function: minor. A path a consumer writes that moves or disappears:
