@@ -16,8 +16,8 @@ describing the project and `<kit source>` naming where the kit comes from — th
 and its URL, or the git repository and its newest tag:
 
 ```text
-Set this project up with charter. It is a <backend | ui | backend and ui in workspaces>
-project<, with tests>.
+Set this project up with charter. It is <a Node service | a web application | both, in
+workspaces><, with tests>.
 
 1. Create package.json if there is none. Install charter as a devDependency from
    <kit source>. If you cannot reach it, stop and ask me; do not install a package named
@@ -91,7 +91,6 @@ secret while npm keeps the workflow's token for GitHub Packages. **Without
 `persist-credentials: false` the install fails:** checkout leaves the workflow's token in the
 repository's git config, git sends it ahead of any credential helper, and GitHub answers
 "Repository not found".
-
 
 ## Modules
 
@@ -230,8 +229,7 @@ In the consuming project's `package.json`:
 
 `need_hooks`, in the `./run` frame below, installs a `commit-msg` hook into the repository's
 hooks directory, wherever `core.hooksPath` points. `init` installs it too, because the commit
-rule is in `core`. The hook
-refuses a message that breaks `commits.md` and says which part:
+rule is in `core`. The hook refuses a message that breaks `commits.md` and says which part:
 
 ```text
 ✗ This commit message breaks the commit rule: the subject starts with a capital letter.
@@ -332,9 +330,10 @@ is the one place its source is restated: `with_github_token` cannot be called be
 installed. Without a token, a project that needs one fails here with npm's `401`. The line
 gives git nothing: a private kit installed over git needs git signed in first, as under Install.
 
-`need_node` reads `CHARTER_NODE_MIN` (default `24`) and `CHARTER_NODE_HINT`, the text it
-prints when Node is too old. `need_env` returns
-non-zero when it created `.env`, so a caller can print its own notes only on the first run.
+`need_node` reads `CHARTER_NODE_MIN`, the floor (default `24`): an older Node warns and the
+script continues. `CHARTER_NODE_HINT` replaces the advice printed when Node is not installed at
+all. `need_env` returns non-zero when it created `.env`, so a caller can print its own notes
+only on the first run.
 **Under `set -e` a bare `need_env` therefore ends the script on exactly that run** — call it as
 `need_env || note "…"`.
 
@@ -353,9 +352,9 @@ lacks for the repository, registering the official marketplace first on a machin
 Code has never run. With nothing missing it prints nothing. Without Claude Code — CI — it notes
 the skip and returns zero.
 
-`need_hooks` installs the commit-msg hook, above, when it is missing or an older kit's. Outside a git repository,
-or beside a project's own hook, it changes nothing and returns zero; with the hook in place it
-prints nothing.
+`need_hooks` installs the commit-msg hook, above, when it is missing or an older kit's.
+Outside a git repository, or beside a project's own hook, it changes nothing and returns zero;
+with the hook in place it prints nothing.
 
 The scenarios stay in each project. Only the frame is shared.
 
