@@ -84,7 +84,7 @@ run >/dev/null || fail "sync failed beside a symlink in the mirror"
 [ ! -L "$out/server/linkdir" ] || fail "a symlink in the mirror survived"
 [ -f "$p/outside-dir/k.md" ] || fail "sync followed a symlink out of the mirror and deleted through it"
 
-# ── run from a subdirectory, the hook's CLAUDE_PROJECT_DIR is the root ────────
+# ── sync roots at CLAUDE_PROJECT_DIR, not at the directory it runs in ─────────
 
 rm -rf "$out"
 ( cd "$p/server" && CLAUDE_PROJECT_DIR="$p" node ../node_modules/charter/bin/charter.mjs sync ) ||

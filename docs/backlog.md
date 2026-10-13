@@ -1,15 +1,97 @@
 # Backlog
 
 What is known to be wrong and not yet fixed, newest first. The rule for this file is the kit's
-own [`common/rules/backlog.md`](../common/rules/backlog.md): one entry per finding, deleted by
+own [`core/rules/backlog.md`](../core/rules/backlog.md): one entry per finding, deleted by
 the commit that fixes it.
 
 Each entry also carries a priority, P1 first. The entries below came out of one review and the
 prompt audits that followed it, so they are ordered by priority rather than by date.
 
 Some entries concern the `superpowers` plugin rather than the kit. They are recorded here because
-the plugin still loads in this repository and in the projects onboarded before `common` stopped
+the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
+
+## A session started in a workspace runs no sync and may read no `core`
+
+- Where: `README.md` "Onboarding a project"; `checks/40-rules.sh`
+- Found: 2026-10-13, in the final review of 3.0, with live sessions
+- Priority: P2
+- Problem: a session started in a subdirectory does not fire the root `.claude/settings.json`
+  `SessionStart` hook, and in `-p` mode does not load the root `CLAUDE.md`'s `core` import.
+  Start `claude` in `server/` of an onboarded repository and look for the always-on rules. The
+  README now says to start at the root; nothing enforces it, and the live session in
+  `checks/40-rules.sh` covers only a root session.
+- Impact: a session started in a workspace silently has no synced path rules and may have no
+  `core`
+
+## The hook prints a raw Node "Cannot find module" before `npm install`
+
+- Where: the `SessionStart` hook `charter init` writes
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P4
+- Problem: on a fresh clone `node_modules/charter` does not exist yet, so the hook's `node`
+  command fails. Clone an onboarded project, start a session before `npm install`, and read the
+  hook output.
+- Impact: every session start shows Node's stack-like error instead of "run npm install"
+
+## `need_hooks` leaves a matching wrapper without its executable bit
+
+- Where: `core/lib.sh`, `need_hooks`
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P4
+- Problem: when the commit-msg hook already holds the current wrapper text, it is left as is,
+  even if its executable bit is gone. `chmod -x .git/hooks/commit-msg`, run `need_hooks`, commit.
+- Impact: git skips a non-executable hook silently, so commits go unchecked
+
+## `checks/75-sync.sh`'s read-only second-run proof is vacuous as root
+
+- Where: `checks/75-sync.sh`, the second run over a mirror made read-only with `a-w`
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P4
+- Problem: root ignores `a-w`. Run `./check 75` as root, as in a container CI, and `sync` can
+  write anywhere, so the "writes nothing" proof passes whatever `sync` does.
+- Impact: a regression that rewrites unchanged files goes unnoticed in such a CI
+
+## `checks/75-sync.sh` does not assert that a dropped workspace's mirror is removed
+
+- Where: `checks/75-sync.sh`, the case that drops a workspace from `charter.json`
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P5
+- Problem: `server/api`'s mirror directory is not asserted gone after its workspace is dropped,
+  only the other pruned paths are.
+- Impact: a regression that leaves a nested workspace's mirror behind passes
+
+## `sync` writes and prunes through symlinks
+
+- Where: `bin/charter.mjs`, `sync()`
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P4
+- Problem: a symlink at a wanted mirror path is written through, and a symlinked
+  `.claude/rules/charter` root is pruned through. Replace the root with a link to another
+  directory and run `charter sync`. The spec says `sync` touches nothing outside
+  `.claude/rules/charter/`.
+- Impact: files outside the mirror can be overwritten or deleted
+
+## `init` writes before `sync` can refuse
+
+- Where: `bin/charter.mjs`, `init()`
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P4
+- Problem: `sync` refuses over another workspace already in `charter.json` (a missing
+  directory, an unknown module) or a malformed `plugins.json`, but only after `init` has written
+  `charter.json`, `CLAUDE.md`, `settings.json` and `.gitignore`; `need_hooks` then never runs.
+  Record a workspace, delete its directory, run `init` for another.
+- Impact: a refused `init` leaves partial changes and no commit-msg hook; each write is additive
+  and re-runnable, so rerunning after the fix completes it
+
+## No test that a project's other hook events survive `init`'s merge
+
+- Where: `bin/charter.mjs`, `init()`; `checks/70-init.sh`
+- Found: 2026-10-13, in the final review of 3.0
+- Priority: P5
+- Problem: the code spreads `settings.hooks` to keep other events, but no case has a
+  project with, say, a `PreToolUse` hook and checks it after `init`.
+- Impact: a regression that drops a project's other hooks passes
 
 ## The sync hook has never run on Windows
 
