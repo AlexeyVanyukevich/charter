@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# Refuses a commit message that breaks common/rules/commits.md. Git runs it with the message
+# file; a project's hooks directory holds the wrapper need_hooks writes, which calls this.
+#
+set -euo pipefail
+
+# Byte semantics, so [A-Z] means the 26 capitals whatever the developer's locale says.
+export LC_ALL=C
+
+types='feat fix docs test refactor perf build ci chore revert'
+
+# What git will record: nothing from the scissors line of `git commit -v` down, and no comments.
+message="$(sed '/^# -\{24\} >8 -\{24\}$/,$d' "$1" | grep -v '^#' || true)"
+subject="$(grep -m1 . <<< "$message" || true)"
+
+refuse() {
+  printf '✗ This commit message breaks the commit rule: %s.\n' "$1" >&2
+  printf '  Write one line, type(scope): subject — e.g. fix(lib): keep the token out of the session\n' >&2
+  printf '  The message was:\n' >&2
+  sed 's/^/    /' <<< "$message" >&2
+  exit 1
+}
+
+[ -n "$subject" ] || refuse 'it is empty'
+
+# A commit `git rebase --autosquash` folds into another; its message never reaches main.
+case "$subject" in 'fixup! '* | 'squash! '* | 'amend! '*) exit 0 ;; esac
+
+[ "$(grep -c . <<< "$message")" = 1 ] ||
+  refuse 'the subject is the whole message, with no body, footer or trailer; keep it to one line'
+
+shape='^([^:(! ]+)(\(([^)]*)\))?!?: (.+)$'
+[[ "$subject" =~ $shape ]] || refuse 'it is not type(scope): subject'
+type="${BASH_REMATCH[1]}"
+has_scope="${BASH_REMATCH[2]}"
+scope="${BASH_REMATCH[3]}"
+text="${BASH_REMATCH[4]}"
+
+[[ " $types " == *" $type "* ]] || refuse "unknown type '$type'; use one of: $types"
+if [ -n "$has_scope" ] && ! [[ "$scope" =~ ^[a-z0-9-]+$ ]]; then
+  refuse "the scope '$scope' must be lowercase letters, digits and hyphens"
+fi
+if [[ "$text" =~ ^[A-Z] ]]; then refuse 'the subject starts with a capital letter'; fi
+if [[ "$subject" == *. ]]; then refuse 'the subject ends with a period'; fi
+
+# Characters, not bytes: drop UTF-8 continuation bytes and count what is left.
+length="$(printf '%s' "$subject" | tr -d '\200-\277' | wc -c | tr -d ' ')"
+[ "$length" -le 72 ] || refuse "the line is $length characters; the limit is 72"
