@@ -23,8 +23,8 @@ workspaces><, with tests>.
    <kit source>. If you cannot reach it, stop and ask me; do not install a package named
    charter from the public registry.
 2. Read node_modules/charter/README.md and follow it for this project's modules:
-   `npx charter init <modules>`, the tsconfig, the Prettier key, the ignore files, and a
-   ./run frame that calls need_node, need_deps and need_plugins.
+   `npx --no charter init <modules>`, the tsconfig, the Prettier key, the ignore files, and a
+   ./run frame that calls need_node, need_deps, need_plugins and need_hooks.
 3. Run ./run, then show me every file you created or changed.
 ```
 
@@ -113,15 +113,15 @@ on a relative import, a bundler wants none. `init` refuses the pair.
 Once the kit is installed, one command per workspace records its modules and wires the project:
 
 ```bash
-npx charter init backend typescript node vitest
+npx --no charter init backend typescript node vitest
 ```
 
 A repository with a server and a web workspace runs it once per directory, at the repository
 root:
 
 ```bash
-npx charter init backend typescript node vitest --workspace server
-npx charter init typescript react vitest --workspace web
+npx --no charter init backend typescript node vitest --workspace server
+npx --no charter init typescript react vitest --workspace web
 ```
 
 `init` with no modules is valid and brings `core` alone. It writes the modules into
@@ -139,7 +139,7 @@ npx charter init typescript react vitest --workspace web
 and then adds what is missing, changing nothing that is set:
 
 - `@node_modules/charter/core/rules.md` in the root `CLAUDE.md`. A workspace needs no
-  `CLAUDE.md` import of its own: rules are scoped by path.
+  `CLAUDE.md` import of its own: rules are scoped by path, for a session started at the root.
 - in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync`, and the plugins
   of the named modules, which are listed in a module's `plugins.json`. Only `react` has one:
   `frontend-design` and `playwright`. A plugin set to `false` stays off.
@@ -152,7 +152,9 @@ named `@root`, and on `node` and `react` in one workspace.
 
 Commit `charter.json`, `CLAUDE.md`, `.claude/settings.json` and `.gitignore`. **Never commit
 `.claude/rules/charter/`:** it is a mirror that `sync` rebuilds at every session start. Start
-sessions anywhere in the repository — rules are scoped by path, not by directory.
+sessions at the repository root, not in a workspace: a session started in a workspace runs no
+sync hook and may not read `core`. Rules are scoped by path, so one root session can work on
+every workspace without loading the others' rules.
 
 **A committed plugin is turned on, not downloaded.** Each clone installs it once:
 `need_plugins`, in the `./run` frame below, does that.
@@ -454,8 +456,10 @@ The package was `dev-kit` until 3.0, and its four sections became modules. Do th
 2. Change each path by the table below, including the `source` line in `./run`. A `./run` still
    pointing at `common/lib.sh` fails loudly, not silently.
 3. Delete the 2.x section imports from every `CLAUDE.md`.
-4. Run `npx charter init <modules> [--workspace <dir>]` for each workspace. It writes
+4. Run `npx --no charter init <modules> [--workspace <dir>]` for each workspace. It writes
    `charter.json`, the hook and the `.gitignore` line, and rewrites the commit-msg wrapper.
+5. On every other clone, after pulling: `npm install`, then `./run` (or `need_hooks`). Until
+   then the old 2.x wrapper lets every commit through without checking it.
 
 | 2.x | 3.0 |
 | --- | --- |

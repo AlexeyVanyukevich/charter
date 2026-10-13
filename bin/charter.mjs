@@ -191,8 +191,9 @@ function init({ names, workspace }) {
 
 const options = parse(process.argv.slice(2))
 if (options.command === 'sync') {
-  // The hook runs with the project root in CLAUDE_PROJECT_DIR, whatever directory the session
-  // started in; by hand, sync runs at the root.
+  // The hook runs with CLAUDE_PROJECT_DIR set to the directory the session started in, which is
+  // the root when sessions start at the root, as the README says; by hand, sync runs in the
+  // working directory.
   guard(() => sync(process.env.CLAUDE_PROJECT_DIR || process.cwd(), kit))
   process.exit(0)
 }
