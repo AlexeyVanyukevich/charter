@@ -11,18 +11,6 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in the projects onboarded before `common` stopped
 turning it on.
 
-## The README's install range stopped moving with releases
-
-- Where: `README.md`, under Install, `"dev-kit": "^2.2.2"`
-- Found: 2026-10-13, while documenting the lint configs
-- Priority: P3 — harmless today, and the next release commit fixes it
-- Problem: the Releasing section says the range moves with every release, patch included. The
-  2.3.0 and 2.3.1 release commits changed only `package.json`, so the README still says
-  `^2.2.2` against a package at 2.3.1. A caret range still installs 2.3.1.
-- Impact: none until a major release, when a stale range installs the previous major without
-  anything failing. Nothing checks the two versions agree. A `./check` that compares them would
-  stop it recurring.
-
 ## Rules for particular tasks and files load in every session
 
 - Where: `backend/rules/http.md`, `layout.md`, `database-tests.md`;
