@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# charter init turns on the plugins a project's sections need and imports their rules, merges
+# charter init turns on the plugins a project's modules need and imports their rules, merges
 # into what is already there, refuses what it cannot do cleanly, and reaches a consumer as
 # `charter`.
 set -euo pipefail
@@ -33,7 +33,7 @@ fail() { echo "  ✗ $*"; exit 1; }
 
 p="$(project fresh)"
 : > "$CLAUDE_LOG"
-( cd "$p" && node "$cli" init common ui ) >/dev/null || fail "init common ui failed"
+( cd "$p" && node "$cli" init typescript react ) >/dev/null || fail "init typescript react failed"
 
 expected='{
   "enabledPlugins": {
@@ -42,12 +42,13 @@ expected='{
   }
 }'
 [ "$(cat "$p/.claude/settings.json")" = "$expected" ] ||
-  { echo "  ✗ settings.json is not what common + ui enable:"; cat "$p/.claude/settings.json"; exit 1; }
+  { echo "  ✗ settings.json is not what typescript + react enable:"; cat "$p/.claude/settings.json"; exit 1; }
 
-expected='@node_modules/charter/common/rules.md
-@node_modules/charter/ui/rules.md'
+expected='@node_modules/charter/core/rules.md
+@node_modules/charter/stacks/typescript/rules.md
+@node_modules/charter/stacks/react/rules.md'
 [ "$(cat "$p/CLAUDE.md")" = "$expected" ] ||
-  { echo "  ✗ CLAUDE.md is not the two imports:"; cat "$p/CLAUDE.md"; exit 1; }
+  { echo "  ✗ CLAUDE.md is not core and the two stacks:"; cat "$p/CLAUDE.md"; exit 1; }
 
 grep -qx 'plugin install playwright@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
   fail "init did not run need_plugins"
@@ -56,7 +57,7 @@ grep -qx 'plugin install playwright@claude-plugins-official --scope project' "$C
 
 cp "$p/.claude/settings.json" "$tmp/settings.before"
 cp "$p/CLAUDE.md" "$tmp/claude.before"
-( cd "$p" && node "$cli" init common ui ) >/dev/null || fail "a second init failed"
+( cd "$p" && node "$cli" init typescript react ) >/dev/null || fail "a second init failed"
 cmp -s "$p/.claude/settings.json" "$tmp/settings.before" || fail "a second run changed settings.json"
 cmp -s "$p/CLAUDE.md" "$tmp/claude.before" || fail "a second run changed CLAUDE.md"
 
@@ -66,7 +67,7 @@ mkdir -p "$p/.claude"
 echo '{"enabledPlugins":{"frontend-design@claude-plugins-official":true,"playwright@claude-plugins-official":true}}' \
   > "$p/.claude/settings.json"
 cp "$p/.claude/settings.json" "$tmp/settings.before"
-( cd "$p" && node "$cli" init ui ) >/dev/null || fail "init with its plugins already set failed"
+( cd "$p" && node "$cli" init react ) >/dev/null || fail "init with its plugins already set failed"
 cmp -s "$p/.claude/settings.json" "$tmp/settings.before" ||
   fail "init rewrote settings.json with nothing to add"
 
@@ -77,7 +78,7 @@ p="$(project merge)"
 mkdir -p "$p/.claude"
 echo '{ "model": "opus", "enabledPlugins": { "playwright@claude-plugins-official": false } }' \
   > "$p/.claude/settings.json"
-( cd "$p" && node "$cli" init ui ) >/dev/null || fail "init into existing settings failed"
+( cd "$p" && node "$cli" init react ) >/dev/null || fail "init into existing settings failed"
 node -e '
   const s = require(process.argv[1])
   if (s.model !== "opus") throw new Error("model was dropped")
@@ -86,24 +87,24 @@ node -e '
 
 # An existing CLAUDE.md with no final newline gets its imports on their own lines.
 printf '# Project' > "$p/CLAUDE.md"
-( cd "$p" && node "$cli" init testing ) >/dev/null || fail "init into an existing CLAUDE.md failed"
-[ "$(cat "$p/CLAUDE.md")" = $'# Project\n\n@node_modules/charter/testing/rules.md' ] ||
+( cd "$p" && node "$cli" init vitest ) >/dev/null || fail "init into an existing CLAUDE.md failed"
+[ "$(cat "$p/CLAUDE.md")" = $'# Project\n\n@node_modules/charter/core/rules.md' ] ||
   { echo "  ✗ imports were not appended after one blank line:"; cat "$p/CLAUDE.md"; exit 1; }
 
-# A section named twice is written once.
+# A module named twice is written once.
 p="$(project twice)"
-( cd "$p" && node "$cli" init common common ) >/dev/null || fail "init common common failed"
-[ "$(grep -c 'common/rules.md' "$p/CLAUDE.md")" = 1 ] || fail "a repeated section was imported twice"
+( cd "$p" && node "$cli" init node node ) >/dev/null || fail "init node node failed"
+[ "$(grep -c 'stacks/node/rules.md' "$p/CLAUDE.md")" = 1 ] || fail "a repeated module was imported twice"
 
 # ── workspaces ────────────────────────────────────────────────────────────────
 
 p="$(project split)"
 mkdir -p "$p/server" "$p/apps/web"
 ( cd "$p" && node "$cli" init backend --workspace server ) >/dev/null || fail "init --workspace server failed"
-( cd "$p" && node "$cli" init ui --workspace apps/web ) >/dev/null || fail "init --workspace apps/web failed"
-[ "$(cat "$p/server/CLAUDE.md")" = '@../node_modules/charter/backend/rules.md' ] ||
+( cd "$p" && node "$cli" init react --workspace apps/web ) >/dev/null || fail "init --workspace apps/web failed"
+[ "$(cat "$p/server/CLAUDE.md")" = '@../node_modules/charter/domains/backend/rules.md' ] ||
   fail "a workspace one level down does not import through ../"
-[ "$(cat "$p/apps/web/CLAUDE.md")" = '@../../node_modules/charter/ui/rules.md' ] ||
+[ "$(cat "$p/apps/web/CLAUDE.md")" = '@../../node_modules/charter/stacks/react/rules.md' ] ||
   fail "a workspace two levels down does not import through ../../"
 grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
   fail "a workspace's plugins did not land in the root settings.json"
@@ -111,17 +112,13 @@ grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
 
 # ── the commit-msg hook ───────────────────────────────────────────────────────
 
-# common carries the commit rule, so init common installs its hook; another section does not.
+# core carries the commit rule and every project loads it, so every init installs the hook.
 # This machine's own git config must not decide where the hook lands.
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 p="$(project hooked)"
 git -C "$p" init -q
-( cd "$p" && node "$cli" init common ) >/dev/null || fail "init common in a repository failed"
-[ -f "$p/.git/hooks/commit-msg" ] || fail "init common did not install the commit-msg hook"
-p="$(project unhooked)"
-git -C "$p" init -q
-( cd "$p" && node "$cli" init ui ) >/dev/null || fail "init ui in a repository failed"
-[ ! -e "$p/.git/hooks/commit-msg" ] || fail "init ui installed the commit-msg hook"
+( cd "$p" && node "$cli" init react ) >/dev/null || fail "init react in a repository failed"
+[ -f "$p/.git/hooks/commit-msg" ] || fail "every init installs the commit-msg hook"
 
 # ── refusals: non-zero, and nothing written ───────────────────────────────────
 
@@ -139,23 +136,23 @@ refuses() {
 }
 
 refuses 'no command' 'Usage: charter init'
-refuses 'another command' 'Usage: charter init' build common
-refuses 'no sections' 'Usage: charter init' init
-refuses 'an unknown section' 'backend, common, testing, ui' init frontend
-refuses 'backend with ui' '--workspace' init backend ui
-refuses 'a missing workspace' 'not a directory' init ui --workspace nope
-refuses 'a workspace outside' 'outside this repository' init ui --workspace ..
+refuses 'another command' 'Usage: charter init' build typescript
+refuses 'no modules' 'Usage: charter init' init
+refuses 'an unknown module' 'backend, node, react, typescript, vitest' init frontend
+refuses 'node with react' '--workspace' init node react
+refuses 'a missing workspace' 'not a directory' init react --workspace nope
+refuses 'a workspace outside' 'outside this repository' init react --workspace ..
 SETUP='mkdir .claude && echo "{" > .claude/settings.json' \
-  refuses 'broken settings JSON' 'settings.json' init common
+  refuses 'broken settings JSON' 'settings.json' init typescript
 SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.json' \
-  refuses 'enabledPlugins as an array' 'enabledPlugins' init common
+  refuses 'enabledPlugins as an array' 'enabledPlugins' init typescript
 
 # Run from a workspace instead of the root, init would write a .claude/ no session reads and an
 # import that loads nothing. Without the kit in node_modules here, it is not the root.
 p="$(project subdir)"
 mkdir -p "$p/server"
 before="$(cd "$p" && find . | sort)"
-err="$( (cd "$p/server" && node "$cli" init backend) 2>&1 >/dev/null )" && fail "init accepted a run from a subdirectory"
+err="$( (cd "$p/server" && node "$cli" init node) 2>&1 >/dev/null )" && fail "init accepted a run from a subdirectory"
 grep -q 'repository root' <<< "$err" || fail "refusing a subdirectory, init did not point to the root: got '$err'"
 [ "$(cd "$p" && find . | sort)" = "$before" ] || fail "init wrote files while refusing a subdirectory"
 

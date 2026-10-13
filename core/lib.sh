@@ -1,6 +1,6 @@
 # Sourced by a project's ./run, never executed:
 #
-#   source node_modules/charter/common/lib.sh
+#   source node_modules/charter/core/lib.sh
 #
 # Sourcing is inert. No shell options are set, no directory is changed and nothing runs — the
 # caller owns `set -euo pipefail` and its own `cd`, and a library that took either would
@@ -164,7 +164,7 @@ need_hooks() {
   IFS= read -r -d '' wrapper <<'HOOK' || true
 #!/bin/sh
 # charter commit-msg
-f=node_modules/charter/common/hooks/commit-msg
+f=node_modules/charter/core/hooks/commit-msg
 if [ ! -f "$f" ]; then
   echo "charter: $f is missing, so this message was not checked. Run npm install." >&2
   exit 0
@@ -175,7 +175,7 @@ HOOK
     # dev-kit is the kit's name before 3.0; a wrapper it wrote is ours to rewrite too.
     if ! grep -qxE '# (charter|dev-kit) commit-msg' "$hooks/commit-msg" 2>/dev/null; then
       note "$hooks/commit-msg is this project's own, so charter's is not installed."
-      note "To enforce the commit rule, call node_modules/charter/common/hooks/commit-msg \"\$1\" from it."
+      note "To enforce the commit rule, call node_modules/charter/core/hooks/commit-msg \"\$1\" from it."
       return 0
     fi
     [ "$(cat "$hooks/commit-msg")" = "${wrapper%$'\n'}" ] && return 0

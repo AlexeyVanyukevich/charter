@@ -32,7 +32,7 @@ while read -r path; do
 done < <(grep -o 'node_modules/charter/[^ )`"]*' <<< "$promised" | sort -u)
 
 # Specifiers that go through module resolution must be in the exports map.
-specifier='charter/\(common\|backend\|ui\)/\(tsconfig\|prettier\)[^ )`"]*'
+specifier='charter/stacks/\(typescript\|node\|react\)/\(tsconfig\|prettier\)[^ )`"]*'
 while read -r spec; do
   sub="./${spec#charter/}"
   node -e "

@@ -1,5 +1,5 @@
 {
-  "extends": "charter/backend/tsconfig",
+  "extends": "charter/stacks/node/tsconfig",
   "compilerOptions": { "noEmit": true },
   "include": ["src/clean.ts"]
 }

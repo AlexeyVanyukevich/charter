@@ -115,7 +115,7 @@ kit to the root `node_modules`. A workspace one level down therefore imports one
 written as `@node_modules/…` it loads nothing, and says nothing:
 
 ```markdown
-@../node_modules/charter/backend/rules.md
+@../node_modules/charter/domains/backend/rules.md
 ```
 
 Start sessions at the repository root. A session started inside a workspace treats the root's
@@ -168,13 +168,13 @@ commit-msg hook below.
 ### TypeScript
 
 ```json
-{ "extends": "charter/backend/tsconfig" }
+{ "extends": "charter/stacks/node/tsconfig" }
 ```
 
-`charter/common/tsconfig` carries the strictness: `strict`, `noUncheckedIndexedAccess`,
-`exactOptionalPropertyTypes`, `target: ES2023`. `charter/backend/tsconfig` adds NodeNext
-resolution and Node types; `charter/ui/tsconfig` adds the DOM lib, bundler resolution and
-`jsx: react-jsx`. A workspace that is neither extends `charter/common/tsconfig` directly.
+`charter/stacks/typescript/tsconfig` carries the strictness: `strict`, `noUncheckedIndexedAccess`,
+`exactOptionalPropertyTypes`, `target: ES2023`. `charter/stacks/node/tsconfig` adds NodeNext
+resolution and Node types; `charter/stacks/react/tsconfig` adds the DOM lib, bundler resolution and
+`jsx: react-jsx`. A workspace that is neither extends `charter/stacks/typescript/tsconfig` directly.
 
 None of the three sets `outDir`, `rootDir` or `include`. Those describe one project's directory
 layout, and a shared base that guesses them is a base every project has to override.
@@ -184,7 +184,7 @@ layout, and a shared base that guesses them is a base every project has to overr
 In the consuming project's `package.json`:
 
 ```json
-{ "prettier": "charter/common/prettier" }
+{ "prettier": "charter/stacks/typescript/prettier" }
 ```
 
 `semi: false`, `singleQuote: true`, `printWidth: 100`.
@@ -195,10 +195,9 @@ One line per section in the consuming project's `CLAUDE.md`, and only the sectio
 project needs:
 
 ```markdown
-@node_modules/charter/common/rules.md
-@node_modules/charter/backend/rules.md
-@node_modules/charter/ui/rules.md
-@node_modules/charter/testing/rules.md
+@node_modules/charter/core/rules.md
+@node_modules/charter/domains/backend/rules.md
+@node_modules/charter/stacks/react/rules.md
 ```
 
 | Section | Rule | Covers |
@@ -243,7 +242,7 @@ with a period, and the 72-character limit. A message beginning `fixup! `, `squas
 `amend! ` passes, because `git rebase --autosquash` folds it away before it reaches `main`.
 
 The hooks directory holds a five-line wrapper that calls
-`node_modules/charter/common/hooks/commit-msg`, so an upgrade of the kit upgrades the hook.
+`node_modules/charter/core/hooks/commit-msg`, so an upgrade of the kit upgrades the hook.
 Until the kit is installed, the wrapper lets every commit through. **A project's own
 `commit-msg` hook is never replaced:** `need_hooks` says so, and the project calls the kit's
 script from its own.
@@ -264,8 +263,8 @@ loads that section:
 ```json
 {
   "extends": [
-    "./node_modules/charter/backend/oxlint.json",
-    "./node_modules/charter/testing/oxlint.json"
+    "./node_modules/charter/stacks/node/oxlint.json",
+    "./node_modules/charter/stacks/vitest/oxlint.json"
   ]
 }
 ```
@@ -309,7 +308,7 @@ over the kit's.
 ### The `./run` skeleton
 
 ```bash
-source node_modules/charter/common/lib.sh
+source node_modules/charter/core/lib.sh
 ```
 
 Defines `step`, `ok`, `note`, `die`, `load_env_file`, `need_docker`, `need_node`, `need_deps`,
@@ -321,9 +320,9 @@ kit is there.** Keep a short bootstrap *above* the `source` line, and test for t
 than the directory: a checkout installed before it took the kit has `node_modules` without it.
 
 ```bash
-[ -f node_modules/charter/common/lib.sh ] ||
+[ -f node_modules/charter/core/lib.sh ] ||
   GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}" npm install
-source node_modules/charter/common/lib.sh
+source node_modules/charter/core/lib.sh
 ```
 
 The token in that line matters only to a project with packages on GitHub Packages, below, and
@@ -387,8 +386,8 @@ and, on the package, access granted to the consuming repository under "Manage Ac
 ### Ignore files
 
 ```bash
-cp node_modules/charter/common/ignore/gitignore .gitignore
-cp node_modules/charter/common/ignore/prettierignore .prettierignore
+cp node_modules/charter/core/ignore/gitignore .gitignore
+cp node_modules/charter/core/ignore/prettierignore .prettierignore
 ```
 
 These are **copied, not referenced** — neither format has an import or extends mechanism. They

@@ -1,8 +1,8 @@
 # charter
 
-The kit follows its own `common` rules.
+The kit follows its own `core` rules.
 
-@common/rules.md
+@core/rules.md
 
 This repository has no `docs/architecture.md`. `README.md` is authoritative for what the kit
 does today, and is the document a slice's last task updates. `./check` is the only verification

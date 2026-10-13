@@ -1,5 +1,5 @@
 {
-  "extends": "charter/common/tsconfig",
+  "extends": "charter/stacks/typescript/tsconfig",
   "compilerOptions": { "noEmit": true, "jsx": "preserve", "types": [] },
   "include": ["**/*.ts", "**/*.tsx"]
 }

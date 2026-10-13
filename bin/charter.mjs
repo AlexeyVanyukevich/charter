@@ -4,15 +4,15 @@
 // changes nothing that is set. Spec: docs/superpowers/specs/2026-10-12-onboarding-design.md.
 
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { KitError } from './modules.mjs'
+import { KitError, findModules } from './modules.mjs'
 import { sync } from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const usage = 'Usage: charter init <section…> [--workspace <dir>]  |  charter sync'
+const usage = 'Usage: charter init <module…> [--workspace <dir>]  |  charter sync'
 const settingsFile = join('.claude', 'settings.json')
 
 function fail(message, hint) {
@@ -40,7 +40,7 @@ function parse(argv) {
     return { command }
   }
   if (command !== 'init') fail(command ? `Unknown command: ${command}.` : 'No command given.', usage)
-  if (sections.length === 0) fail('Name at least one section.', usage)
+  if (sections.length === 0) fail('Name at least one module.', usage)
   return { command, sections: [...new Set(sections)], workspace: parsed.values.workspace ?? '.' }
 }
 
@@ -54,17 +54,14 @@ function check({ sections, workspace }) {
       'Run charter init at the repository root, where the kit is installed.',
     )
   }
-  const valid = readdirSync(kit)
-    .filter((name) => existsSync(join(kit, name, 'rules.md')))
-    .sort()
-  const unknown = sections.filter((section) => !valid.includes(section))
+  const unknown = sections.filter((name) => !modules.has(name))
   if (unknown.length > 0) {
-    fail(`Unknown section: ${unknown.join(', ')}.`, `The sections are ${valid.join(', ')}.`)
+    fail(`Unknown module: ${unknown.join(', ')}.`, `The modules are ${[...modules.keys()].join(', ')}.`)
   }
-  if (sections.includes('backend') && sections.includes('ui')) {
+  if (sections.includes('node') && sections.includes('react')) {
     fail(
-      'backend and ui cannot load in the same directory.',
-      'Give each its own workspace: charter init backend --workspace <dir>, and the same for ui.',
+      'node and react cannot load in the same directory.',
+      'Give each its own workspace: charter init node --workspace <dir>, and the same for react.',
     )
   }
   const dir = resolve(workspace)
@@ -96,10 +93,11 @@ function readSettings() {
 }
 
 function pluginsOf(section) {
-  const file = join(kit, section, 'plugins.json')
+  const file = join(kit, modules.get(section), 'plugins.json')
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : []
 }
 
+const modules = findModules(kit)
 const options = parse(process.argv.slice(2))
 if (options.command === 'sync') {
   // The hook runs with the project root in CLAUDE_PROJECT_DIR, whatever directory the session
@@ -121,9 +119,12 @@ const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
 
 // The import climbs from the workspace back to the root, where node_modules is hoisted.
 const up = relative(dir, process.cwd()).split(sep).join('/')
-const imports = options.sections.map(
-  (section) => `@${up ? `${up}/` : ''}node_modules/charter/${section}/rules.md`,
-)
+// core loads from the root's CLAUDE.md; each module's index from its workspace's.
+const indexOf = (name) => (name === 'core' ? 'core' : modules.get(name))
+const atRoot = dir === process.cwd()
+const imports = [...(atRoot ? ['core'] : []), ...options.sections]
+  .filter((name) => existsSync(join(kit, indexOf(name), 'rules.md')))
+  .map((name) => `@${up ? `${up}/` : ''}node_modules/charter/${indexOf(name)}/rules.md`)
 const claudeFile = join(dir, 'CLAUDE.md')
 const claude = existsSync(claudeFile) ? readFileSync(claudeFile, 'utf8') : ''
 const present = new Set(claude.split('\n').map((line) => line.trimEnd()))
@@ -151,9 +152,9 @@ for (const line of imports) {
   console.log(newImports.includes(line) ? `✓ ${shown}: ${line}` : `  ${shown} already has ${line}`)
 }
 
-// common carries the commit rule, so it alone brings the hook that enforces it.
-const lib = join(kit, 'common', 'lib.sh')
-const hooks = options.sections.includes('common') ? 'yes' : 'no'
-const script = 'source "$1" && need_plugins && if [ "$2" = yes ]; then need_hooks; fi'
-const run = spawnSync('bash', ['-c', script, 'charter', lib, hooks], { stdio: 'inherit' })
+// core carries the commit rule, and every project loads core, so every init installs the hook.
+const lib = join(kit, 'core', 'lib.sh')
+const run = spawnSync('bash', ['-c', 'source "$1" && need_plugins && need_hooks', 'charter', lib], {
+  stdio: 'inherit',
+})
 process.exit(run.status ?? 1)

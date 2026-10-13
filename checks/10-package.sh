@@ -25,16 +25,20 @@ expect_packed 'bin/sync.mjs'
 # difference between the two channels that nothing else would catch.
 while read -r file; do
   expect_packed "$file"
-done < <(find common backend ui testing -type f 2>/dev/null | sort)
+done < <(find core domains stacks -type f 2>/dev/null | sort)
 
 # A shipped file that still names a 1.x path sends a consumer somewhere that no longer exists.
 stale="$(grep -rnE '(dev-kit|charter)/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' \
-  common backend ui testing 2>/dev/null || true)"
+  core domains stacks 2>/dev/null || true)"
 [ -z "$stale" ] || { echo "  ✗ shipped files still name 1.x paths:"; echo "$stale"; exit 1; }
 
-# Only the four sections and the onboarding executable ship, plus what npm always adds. A 1.x
+# A 2.x path in a shipped file sends a consumer to a directory 3.0 removed.
+stale2="$(grep -rnE '(dev-kit|charter)/(common|backend|ui|testing)/' core domains stacks 2>/dev/null || true)"
+[ -z "$stale2" ] || { echo "  ✗ shipped files still name 2.x paths:"; echo "$stale2"; exit 1; }
+
+# Only core, domains, stacks and the onboarding executable ship, plus what npm always adds. A 1.x
 # directory left in `files` would ship a second, stale copy of a rule.
-outside="$(grep -vE '^(bin|common|backend|ui|testing)/|^package\.json$|^README\.md$' \
+outside="$(grep -vE '^(bin|core|domains|stacks)/|^package\.json$|^README\.md$' \
   <<< "$packed" || true)"
 [ -z "$outside" ] || {
   echo "  ✗ the package ships files outside the sections:"

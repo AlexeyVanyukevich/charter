@@ -12,10 +12,10 @@ tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fail() { echo "  ✗ $*"; exit 1; }
 
-# A project's .oxlintrc.json, extending the named sections in the order given.
+# A project's .oxlintrc.json, extending the named stacks in the order given.
 config() {
   local section list=''
-  for section in "$@"; do list+="${list:+, }\"$kit/$section/oxlint.json\""; done
+  for section in "$@"; do list+="${list:+, }\"$kit/stacks/$section/oxlint.json\""; done
   echo "{ \"extends\": [$list] }" > "$tmp/oxlintrc.json"
 }
 
@@ -37,22 +37,22 @@ fired() {
 # rules expected to fire. Exactly, not at least: a rule the kit turned off that fires anyway is
 # as much a failure as a promised rule that does not.
 IFS= read -r -d '' cases <<'ROWS' || true
-common|any.ts|typescript(no-explicit-any)
-common|floating.ts|typescript(no-floating-promises)
-common|switch.ts|typescript(switch-exhaustiveness-check)
-common|misused.ts|typescript(no-misused-promises)
-common|onclick.tsx|typescript(no-misused-promises)
-common|cast.ts|-
-common|sort.ts|-
-common|migrations/0001.ts|typescript(no-explicit-any)
-backend|migrations/0001.ts|-
-backend|any.ts|typescript(no-explicit-any)
-ui|onclick.tsx|-
-ui|key.tsx|react(jsx-key)
-common testing|focused.test.ts|vitest(no-focused-tests)
-common testing|message.test.ts|-
-backend testing|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
-testing backend|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
+typescript|any.ts|typescript(no-explicit-any)
+typescript|floating.ts|typescript(no-floating-promises)
+typescript|switch.ts|typescript(switch-exhaustiveness-check)
+typescript|misused.ts|typescript(no-misused-promises)
+typescript|onclick.tsx|typescript(no-misused-promises)
+typescript|cast.ts|-
+typescript|sort.ts|-
+typescript|migrations/0001.ts|typescript(no-explicit-any)
+node|migrations/0001.ts|-
+node|any.ts|typescript(no-explicit-any)
+react|onclick.tsx|-
+react|key.tsx|react(jsx-key)
+typescript vitest|focused.test.ts|vitest(no-focused-tests)
+typescript vitest|message.test.ts|-
+node vitest|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
+vitest node|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
 ROWS
 cases="${cases%$'\n'}"
 
@@ -72,7 +72,7 @@ done <<< "$cases"
 mkdir -p "$tmp/bare"
 cp lint/floating.ts "$tmp/bare/"
 echo '{ "include": ["*.ts"] }' > "$tmp/bare/tsconfig.json"
-config common
+config typescript
 out="$(cd "$tmp/bare" && env -u OXLINT_TSGOLINT_PATH "$oxlint" -c "$tmp/oxlintrc.json" floating.ts 2>&1)" &&
   fail "oxlint passed without oxlint-tsgolint; the config does not turn on type-aware rules"
 grep -q 'oxlint-tsgolint' <<< "$out" ||
