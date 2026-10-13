@@ -3,9 +3,9 @@
 `docs/architecture.md` is **authoritative for what the project does today**. With the README it
 is the whole onboarding path. Read it before changing behaviour.
 
-Every slice gets a design document in `docs/superpowers/specs/` and an implementation plan in
-`docs/superpowers/plans/`, both named `YYYY-MM-DD-<topic>.md`. Write and approve the spec
-before touching code. A slice is a change that leaves a design decision to make; a bounded
+Every slice gets a design document, `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, and
+an implementation plan, `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`. Write and approve the
+spec before touching code. A slice is a change that leaves a design decision to make; a bounded
 change — one file, nothing left to decide — gets neither document.
 
 Both are dated artefacts, and **neither is revised once the slice ships**:

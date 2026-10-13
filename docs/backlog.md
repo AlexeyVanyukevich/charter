@@ -47,18 +47,6 @@ turning it on.
 
   That is a minor or major release.
 
-## The documentation rule names specs differently from the plugin that writes them
-
-- Where: `common/rules/documentation.md`, lines 6–7
-- Found: 2026-10-12, by the prompt audit of every section's rules
-- Priority: P6 — low; two later audits rated it low or no conflict at all
-- Problem: the rule names specs and plans alike, `YYYY-MM-DD-<topic>.md`. The `superpowers`
-  brainstorming skill saves the spec as `YYYY-MM-DD-<topic>-design.md`, and this repository's
-  own specs carry that suffix. Against it: `<topic>` can absorb the suffix, and the rule is the
-  narrower instruction.
-- Impact: spec names may drift between projects. If it is fixed, name the spec
-  `YYYY-MM-DD-<topic>-design.md` in the rule and keep the plan as it is.
-
 ## This repository does not follow its own documentation rule
 
 - Where: the repository root; `docs/superpowers/plans/`
