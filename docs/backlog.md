@@ -67,4 +67,5 @@ turning it on.
 - Problem: the first takes `BASE_SHA=$(git rev-parse HEAD~1)`. The second says never use
   `HEAD~1`, because it drops every commit of a multi-commit task but the last.
 - Impact: a review following the first leaves a multi-commit task's earlier commits unreviewed.
-  Raise it with the plugin's maintainers.
+  Already raised upstream: issue obra/superpowers#2403, with the fix in pull request #2381, both
+  open on 2026-10-13. Delete this entry once a release carrying the fix is installed here.
