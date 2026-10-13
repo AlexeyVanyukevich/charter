@@ -1,3 +1,9 @@
+---
+paths:
+  - "src/*"
+  - "src/modules/**"
+  - "src/shared/**"
+---
 # HTTP
 
 Every error response has the same shape, whatever produced it:

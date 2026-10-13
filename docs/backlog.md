@@ -11,33 +11,6 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in the projects onboarded before `common` stopped
 turning it on.
 
-## Rules for particular tasks and files load in every session
-
-- Where: `backend/rules/http.md`, `layout.md`, `database-tests.md`;
-  `common/rules/documentation.md`; the example entry in `common/rules/backlog.md`
-- Found: 2026-10-12, while reviewing the rules against Anthropic's guidance on instruction size
-- Priority: P5 — the largest saving, and the most disruptive; do it once the 2.2.2 trim no longer
-  leaves room under the 225-line budget
-- Problem: an `@` import loads at launch, so splitting rules into files only organises them; it
-  saves nothing. The 59 backend lines matter only when Claude touches routes, module layout or
-  database tests. The slice-docs workflow and the backlog entry format matter only while doing
-  those tasks. Claude Code's docs send content like this to path-scoped rules (`.claude/rules/`
-  files with `paths:` frontmatter) or skills. `@` imports can deliver neither.
-- Impact: every backend session pays about a quarter of its rules budget for rules most tasks
-  never use. Moving them changes how the kit is delivered:
-  - consumers link the files into `.claude/rules/` and `.claude/skills/`, or the kit ships as a
-    Claude Code plugin;
-  - the live-session test in `checks/40-rules.sh`, which reads back `forbidden_origin` from
-    `http.md`, has to change;
-  - a rule moved into a skill loads only when Claude judges it relevant.
-
-  That is a minor or major release.
-- Decided: 2026-10-13, deferred until the budget runs out; a backend session read 216 lines
-  then. When it does, move `http.md`, `layout.md` and `database-tests.md` to path-scoped
-  `.claude/rules/` files, since each maps to paths and loads predictably, and the slice-docs
-  workflow and the backlog entry format to skills. `dev-kit init` links them in. First prove
-  that Claude Code follows a `.claude/rules/` link into `node_modules`.
-
 ## Two `superpowers` skills give opposite review ranges
 
 - Where: the `superpowers` skills `requesting-code-review`, line 28, and

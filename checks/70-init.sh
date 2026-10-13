@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# charter init turns on the plugins a project's modules need and imports their rules, merges
-# into what is already there, refuses what it cannot do cleanly, and reaches a consumer as
+# charter init records a workspace's modules in charter.json, imports core into the root
+# CLAUDE.md, wires the sync hook, the .gitignore line and the modules' plugins, then syncs —
+# merging into what is there, refusing what it cannot do cleanly, and reaching a consumer as
 # `charter`.
 set -euo pipefail
 
@@ -24,101 +25,129 @@ FAKE
 chmod +x "$tmp/bin/claude"
 export CLAUDE_LOG="$tmp/claude.log"
 export PATH="$tmp/bin:$PATH"
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
-# A new project directory with the kit installed at its root, as init expects.
 project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/charter"; echo "$tmp/$1"; }
 fail() { echo "  ✗ $*"; exit 1; }
+hook='node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
 
 # ── a first run ───────────────────────────────────────────────────────────────
 
 p="$(project fresh)"
-: > "$CLAUDE_LOG"
-( cd "$p" && node "$cli" init typescript react ) >/dev/null || fail "init typescript react failed"
-
-expected='{
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "playwright@claude-plugins-official": true
-  }
-}'
-[ "$(cat "$p/.claude/settings.json")" = "$expected" ] ||
-  { echo "  ✗ settings.json is not what typescript + react enable:"; cat "$p/.claude/settings.json"; exit 1; }
-
-expected='@node_modules/charter/core/rules.md
-@node_modules/charter/stacks/typescript/rules.md
-@node_modules/charter/stacks/react/rules.md'
-[ "$(cat "$p/CLAUDE.md")" = "$expected" ] ||
-  { echo "  ✗ CLAUDE.md is not core and the two stacks:"; cat "$p/CLAUDE.md"; exit 1; }
-
-grep -qx 'plugin install playwright@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
-  fail "init did not run need_plugins"
+( cd "$p" && node "$cli" init backend typescript node vitest ) >/dev/null ||
+  fail "init backend typescript node vitest failed"
+[ "$(node -p 'JSON.stringify(require(process.argv[1]))' "$p/charter.json")" = \
+  '{"workspaces":{".":["backend","typescript","node","vitest"]}}' ] ||
+  { echo "  ✗ charter.json is not the four modules:"; cat "$p/charter.json"; exit 1; }
+[ "$(cat "$p/CLAUDE.md")" = '@node_modules/charter/core/rules.md' ] ||
+  { echo "  ✗ CLAUDE.md is not the core import:"; cat "$p/CLAUDE.md"; exit 1; }
+node -e '
+  const s = require(process.argv[1])
+  const entries = s.hooks.SessionStart
+  if (entries.length !== 1 || entries[0].hooks.length !== 1) throw new Error("not one hook")
+  if (entries[0].hooks[0].type !== "command" || entries[0].hooks[0].command !== process.argv[2]) throw new Error("not sync")
+  if (s.enabledPlugins !== undefined) throw new Error("plugins for modules that bring none")
+' "$p/.claude/settings.json" "$hook" 2>/dev/null ||
+  { echo "  ✗ settings.json does not hold exactly the sync hook:"; cat "$p/.claude/settings.json"; exit 1; }
+[ "$(cat "$p/.gitignore")" = '.claude/rules/charter/' ] || fail ".gitignore does not ignore the synced rules"
+grep -qx '  - "src/modules/\*\*"' "$p/.claude/rules/charter/@root/backend/http.md" ||
+  fail "init did not sync the backend rules"
 
 # ── a second run changes nothing ───────────────────────────────────────────────
 
-cp "$p/.claude/settings.json" "$tmp/settings.before"
-cp "$p/CLAUDE.md" "$tmp/claude.before"
-( cd "$p" && node "$cli" init typescript react ) >/dev/null || fail "a second init failed"
-cmp -s "$p/.claude/settings.json" "$tmp/settings.before" || fail "a second run changed settings.json"
-cmp -s "$p/CLAUDE.md" "$tmp/claude.before" || fail "a second run changed CLAUDE.md"
+for f in charter.json CLAUDE.md .gitignore .claude/settings.json; do cp "$p/$f" "$tmp/before.${f//\//_}"; done
+( cd "$p" && node "$cli" init backend typescript node vitest ) >/dev/null || fail "a second init failed"
+for f in charter.json CLAUDE.md .gitignore .claude/settings.json; do
+  cmp -s "$p/$f" "$tmp/before.${f//\//_}" || fail "a second run changed $f"
+done
 
-# Nothing to add means the file is not rewritten, so a project's own formatting survives.
+# Nothing to add means a file is not rewritten, so a project's own formatting survives.
 p="$(project formatted)"
 mkdir -p "$p/.claude"
-echo '{"enabledPlugins":{"frontend-design@claude-plugins-official":true,"playwright@claude-plugins-official":true}}' \
-  > "$p/.claude/settings.json"
+printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":%s}]}]}}\n' \
+  "$(node -p 'JSON.stringify(process.argv[1])' "$hook")" > "$p/.claude/settings.json"
 cp "$p/.claude/settings.json" "$tmp/settings.before"
-( cd "$p" && node "$cli" init react ) >/dev/null || fail "init with its plugins already set failed"
-cmp -s "$p/.claude/settings.json" "$tmp/settings.before" ||
-  fail "init rewrote settings.json with nothing to add"
+( cd "$p" && node "$cli" init typescript ) >/dev/null || fail "init with its hook already set failed"
+cmp -s "$p/.claude/settings.json" "$tmp/settings.before" || fail "init rewrote settings.json with nothing to add"
+
+# ── no modules: core alone ────────────────────────────────────────────────────
+
+p="$(project bare)"
+( cd "$p" && node "$cli" init ) >/dev/null || fail "init with no modules failed"
+[ "$(node -p 'JSON.stringify(require(process.argv[1]).workspaces)' "$p/charter.json")" = '{".":[]}' ] ||
+  fail "init with no modules did not record an empty root workspace"
+grep -qx '@node_modules/charter/core/rules.md' "$p/CLAUDE.md" || fail "init with no modules did not import core"
 
 # ── merging into what is there ────────────────────────────────────────────────
 
-# An opt-out survives, and so does every key init does not own.
 p="$(project merge)"
 mkdir -p "$p/.claude"
-echo '{ "model": "opus", "enabledPlugins": { "playwright@claude-plugins-official": false } }' \
+echo '{ "model": "opus", "enabledPlugins": { "playwright@claude-plugins-official": false },
+  "hooks": { "SessionStart": [ { "hooks": [ { "type": "command", "command": "echo own" } ] } ] } }' \
   > "$p/.claude/settings.json"
-( cd "$p" && node "$cli" init react ) >/dev/null || fail "init into existing settings failed"
+printf '# Project' > "$p/CLAUDE.md"
+printf 'dist/' > "$p/.gitignore"
+echo '{ "workspaces": { ".": ["typescript"] }, "note": "kept" }' > "$p/charter.json"
+: > "$CLAUDE_LOG"
+( cd "$p" && node "$cli" init react vitest ) >/dev/null || fail "init into an existing project failed"
 node -e '
   const s = require(process.argv[1])
   if (s.model !== "opus") throw new Error("model was dropped")
-  if (s.enabledPlugins["playwright@claude-plugins-official"] !== false) throw new Error("opt-out was overwritten")
-' "$p/.claude/settings.json" 2>/dev/null || fail "init changed a value already set in settings.json"
-
-# An existing CLAUDE.md with no final newline gets its imports on their own lines.
-printf '# Project' > "$p/CLAUDE.md"
-( cd "$p" && node "$cli" init vitest ) >/dev/null || fail "init into an existing CLAUDE.md failed"
+  if (s.enabledPlugins["playwright@claude-plugins-official"] !== false) throw new Error("opt-out overwritten")
+  if (s.enabledPlugins["frontend-design@claude-plugins-official"] !== true) throw new Error("plugin not enabled")
+  const commands = s.hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command))
+  if (commands.length !== 2 || commands[0] !== "echo own") throw new Error("own hook not kept first")
+' "$p/.claude/settings.json" 2>/dev/null || fail "init changed or dropped something set in settings.json"
 [ "$(cat "$p/CLAUDE.md")" = $'# Project\n\n@node_modules/charter/core/rules.md' ] ||
-  { echo "  ✗ imports were not appended after one blank line:"; cat "$p/CLAUDE.md"; exit 1; }
+  { echo "  ✗ the core import was not appended after one blank line:"; cat "$p/CLAUDE.md"; exit 1; }
+[ "$(cat "$p/.gitignore")" = $'dist/\n\n.claude/rules/charter/' ] ||
+  { echo "  ✗ the .gitignore line was not appended after one blank line:"; cat "$p/.gitignore"; exit 1; }
+node -e '
+  const m = require(process.argv[1])
+  if (m.note !== "kept" || m.workspaces["."].join() !== "typescript,react,vitest") throw new Error()
+' "$p/charter.json" 2>/dev/null || fail "init did not append to the workspace's modules, keeping the rest"
+grep -qx 'plugin install frontend-design@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
+  fail "init did not run need_plugins"
 
-# A module named twice is written once.
+# A .gitignore already ignoring the directory, without the slash, is left alone.
+p="$(project ignored)"
+printf '.claude/rules/charter\n' > "$p/.gitignore"
+( cd "$p" && node "$cli" init ) >/dev/null || fail "init beside an existing ignore line failed"
+[ "$(cat "$p/.gitignore")" = '.claude/rules/charter' ] || fail "init added a second ignore line"
+
+# A module named twice is recorded once.
 p="$(project twice)"
 ( cd "$p" && node "$cli" init node node ) >/dev/null || fail "init node node failed"
-[ "$(grep -c 'stacks/node/rules.md' "$p/CLAUDE.md")" = 1 ] || fail "a repeated module was imported twice"
+[ "$(node -p 'require(process.argv[1]).workspaces["."].join()' "$p/charter.json")" = node ] ||
+  fail "a repeated module was recorded twice"
 
 # ── workspaces ────────────────────────────────────────────────────────────────
 
 p="$(project split)"
 mkdir -p "$p/server" "$p/apps/web"
-( cd "$p" && node "$cli" init backend --workspace server ) >/dev/null || fail "init --workspace server failed"
-( cd "$p" && node "$cli" init react --workspace apps/web ) >/dev/null || fail "init --workspace apps/web failed"
-[ "$(cat "$p/server/CLAUDE.md")" = '@../node_modules/charter/domains/backend/rules.md' ] ||
-  fail "a workspace one level down does not import through ../"
-[ "$(cat "$p/apps/web/CLAUDE.md")" = '@../../node_modules/charter/stacks/react/rules.md' ] ||
-  fail "a workspace two levels down does not import through ../../"
+( cd "$p" && node "$cli" init backend typescript node --workspace server ) >/dev/null ||
+  fail "init --workspace server failed"
+( cd "$p" && node "$cli" init typescript react --workspace apps/web/ ) >/dev/null ||
+  fail "init --workspace apps/web/ failed"
+node -e '
+  const w = require(process.argv[1]).workspaces
+  if (w.server.join() !== "backend,typescript,node" || w["apps/web"].join() !== "typescript,react") throw new Error()
+' "$p/charter.json" 2>/dev/null || fail "workspaces are not recorded by their path from the root"
+grep -qx '  - "server/src/modules/\*\*"' "$p/.claude/rules/charter/server/backend/http.md" ||
+  fail "a workspace's rules were not synced with its prefix"
+[ -f "$p/.claude/rules/charter/apps/web/react/typescript.md" ] || fail "a nested workspace's rules were not synced"
+[ "$(cat "$p/CLAUDE.md")" = '@node_modules/charter/core/rules.md' ] || fail "core was not imported at the root, once"
+[ ! -e "$p/server/CLAUDE.md" ] && [ ! -e "$p/apps/web/.claude" ] || fail "init wrote into a workspace"
 grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
   fail "a workspace's plugins did not land in the root settings.json"
-[ ! -e "$p/apps/web/.claude" ] || fail "a workspace got its own .claude directory"
 
 # ── the commit-msg hook ───────────────────────────────────────────────────────
 
-# core carries the commit rule and every project loads it, so every init installs the hook.
-# This machine's own git config must not decide where the hook lands.
-export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+# core carries the commit rule and every project loads core, so every init installs the hook.
 p="$(project hooked)"
 git -C "$p" init -q
-( cd "$p" && node "$cli" init react ) >/dev/null || fail "init react in a repository failed"
-[ -f "$p/.git/hooks/commit-msg" ] || fail "every init installs the commit-msg hook"
+( cd "$p" && node "$cli" init ) >/dev/null || fail "init in a repository failed"
+[ -f "$p/.git/hooks/commit-msg" ] || fail "init did not install the commit-msg hook"
 
 # ── refusals: non-zero, and nothing written ───────────────────────────────────
 
@@ -137,18 +166,24 @@ refuses() {
 
 refuses 'no command' 'Usage: charter init'
 refuses 'another command' 'Usage: charter init' build typescript
-refuses 'no modules' 'Usage: charter init' init
+refuses 'sync with arguments' 'no arguments' sync backend
 refuses 'an unknown module' 'backend, node, react, typescript, vitest' init frontend
-refuses 'node with react' '--workspace' init node react
+refuses 'node with react' 'cannot share a workspace' init node react
+SETUP='echo "{ \"workspaces\": { \".\": [\"node\"] } }" > charter.json' \
+  refuses 'react beside a recorded node' 'cannot share a workspace' init react
 refuses 'a missing workspace' 'not a directory' init react --workspace nope
 refuses 'a workspace outside' 'outside this repository' init react --workspace ..
+SETUP='mkdir @root' refuses 'a workspace named @root' '@root' init react --workspace @root
 SETUP='mkdir .claude && echo "{" > .claude/settings.json' \
   refuses 'broken settings JSON' 'settings.json' init typescript
 SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.json' \
   refuses 'enabledPlugins as an array' 'enabledPlugins' init typescript
+SETUP='mkdir .claude && echo "{ \"hooks\": [] }" > .claude/settings.json' \
+  refuses 'hooks as an array' 'hooks' init typescript
+SETUP='echo "{" > charter.json' refuses 'broken charter.json' 'charter.json' init typescript
 
-# Run from a workspace instead of the root, init would write a .claude/ no session reads and an
-# import that loads nothing. Without the kit in node_modules here, it is not the root.
+# Run from a workspace instead of the root, init would write where no session reads. Without the
+# kit in node_modules here, it is not the root.
 p="$(project subdir)"
 mkdir -p "$p/server"
 before="$(cd "$p" && find . | sort)"
@@ -163,4 +198,5 @@ grep -q 'repository root' <<< "$err" || fail "refusing a subdirectory, init did 
 err="$(tests/fixture/node_modules/.bin/charter 2>&1 >/dev/null)" && fail "charter with no arguments succeeded"
 grep -q 'Usage: charter init' <<< "$err" || fail "a consumer's charter does not print its usage"
 
-echo "  ✓ init enables plugins and imports rules, merges without overwriting, places workspace imports, refuses cleanly, and reaches a consumer"
+echo "  ✓ init records modules, imports core, wires the sync hook and the ignore line, merges"
+echo "    without overwriting, syncs each workspace, refuses cleanly, and reaches a consumer"

@@ -115,7 +115,6 @@ kit to the root `node_modules`. A workspace one level down therefore imports one
 written as `@node_modules/…` it loads nothing, and says nothing:
 
 ```markdown
-@../node_modules/charter/domains/backend/rules.md
 ```
 
 Start sessions at the repository root. A session started inside a workspace treats the root's
@@ -196,8 +195,6 @@ project needs:
 
 ```markdown
 @node_modules/charter/core/rules.md
-@node_modules/charter/domains/backend/rules.md
-@node_modules/charter/stacks/react/rules.md
 ```
 
 | Section | Rule | Covers |

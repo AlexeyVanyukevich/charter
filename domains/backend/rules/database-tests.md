@@ -1,3 +1,7 @@
+---
+paths:
+  - "tests/integration/**"
+---
 # Database tests
 
 **Integration tests run against a real PostgreSQL, started by Testcontainers.** The guarantees
