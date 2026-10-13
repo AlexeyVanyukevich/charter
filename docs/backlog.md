@@ -46,6 +46,11 @@ turning it on.
   - a rule moved into a skill loads only when Claude judges it relevant.
 
   That is a minor or major release.
+- Decided: 2026-10-13, deferred until the budget runs out; a backend session read 216 lines
+  then. When it does, move `http.md`, `layout.md` and `database-tests.md` to path-scoped
+  `.claude/rules/` files, since each maps to paths and loads predictably, and the slice-docs
+  workflow and the backlog entry format to skills. `dev-kit init` links them in. First prove
+  that Claude Code follows a `.claude/rules/` link into `node_modules`.
 
 ## Two `superpowers` skills give opposite review ranges
 
