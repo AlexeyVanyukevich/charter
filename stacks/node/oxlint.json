@@ -1,5 +1,5 @@
 {
-  "extends": ["../common/oxlint.json"],
+  "extends": ["../typescript/oxlint.json"],
   "plugins": ["node"],
   "rules": {
     "oxc/no-async-endpoint-handlers": "off"

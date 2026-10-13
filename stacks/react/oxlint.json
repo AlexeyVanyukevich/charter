@@ -1,5 +1,5 @@
 {
-  "extends": ["../common/oxlint.json"],
+  "extends": ["../typescript/oxlint.json"],
   "plugins": ["react", "jsx-a11y"],
   "rules": {
     "react/react-in-jsx-scope": "off",

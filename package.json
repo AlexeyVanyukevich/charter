@@ -13,19 +13,18 @@
   },
   "files": [
     "bin",
-    "common",
-    "backend",
-    "ui",
-    "testing"
+    "core",
+    "domains",
+    "stacks"
   ],
   "bin": {
     "charter": "bin/charter.mjs"
   },
   "exports": {
     "./package.json": "./package.json",
-    "./common/tsconfig": "./common/tsconfig.json",
-    "./common/prettier": "./common/prettier.json",
-    "./backend/tsconfig": "./backend/tsconfig.json",
-    "./ui/tsconfig": "./ui/tsconfig.json"
+    "./stacks/typescript/tsconfig": "./stacks/typescript/tsconfig.json",
+    "./stacks/typescript/prettier": "./stacks/typescript/prettier.json",
+    "./stacks/node/tsconfig": "./stacks/node/tsconfig.json",
+    "./stacks/react/tsconfig": "./stacks/react/tsconfig.json"
   }
 }

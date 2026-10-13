@@ -1,4 +1,4 @@
 {
-  "extends": "charter/ui/tsconfig",
+  "extends": "charter/stacks/react/tsconfig",
   "include": ["src/dom.ts"]
 }

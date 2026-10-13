@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Refuses a commit message that breaks common/rules/commits.md. Git runs it with the message
+# Refuses a commit message that breaks core/rules/commits.md. Git runs it with the message
 # file; a project's hooks directory holds the wrapper need_hooks writes, which calls this.
 #
 set -euo pipefail

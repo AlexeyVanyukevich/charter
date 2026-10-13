@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The commit-msg hook refuses exactly the messages common/rules/commits.md forbids, and says
+# The commit-msg hook refuses exactly the messages core/rules/commits.md forbids, and says
 # which part of the rule each one broke.
 set -euo pipefail
 
-hook="$PWD/common/hooks/commit-msg"
-[ -f "$hook" ] || { echo "  ✗ common/hooks/commit-msg does not exist"; exit 1; }
+hook="$PWD/core/hooks/commit-msg"
+[ -f "$hook" ] || { echo "  ✗ core/hooks/commit-msg does not exist"; exit 1; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -74,7 +74,7 @@ done <<< "$cases"
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=check GIT_AUTHOR_EMAIL=check@example.com
 export GIT_COMMITTER_NAME=check GIT_COMMITTER_EMAIL=check@example.com
-lib="$PWD/common/lib.sh"
+lib="$PWD/core/lib.sh"
 
 repo="$tmp/repo"
 git init -q "$repo"
@@ -131,7 +131,7 @@ tar -xzf "$tmp/$tarball" -C "$consumer/node_modules/charter" --strip-components 
 git init -q "$consumer"
 echo 'node_modules/' > "$consumer/.gitignore"
 git -C "$consumer" add .gitignore
-( cd "$consumer" && source node_modules/charter/common/lib.sh && need_hooks ) >/dev/null ||
+( cd "$consumer" && source node_modules/charter/core/lib.sh && need_hooks ) >/dev/null ||
   fail "need_hooks failed in a consumer"
 git -C "$consumer" commit -q -m 'Fix: x' 2>/dev/null && fail "git accepted 'Fix: x' with the hook installed"
 git -C "$consumer" commit -q -m 'fix: x' 2>/dev/null || fail "git refused 'fix: x' with the hook installed"

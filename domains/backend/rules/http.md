@@ -18,9 +18,8 @@ and the test suite, and is never shown to a user.
 | `payload_too_large` | 413    | Body beyond the configured limit                 |
 | `internal_error`    | 500    | Anything unexpected                              |
 
-**Every request body is a TypeBox schema with `additionalProperties: false`.** Unknown fields
-are rejected, never ignored: a field the server silently drops is a feature the client believes
-it has.
+**Every request body is validated against a schema that rejects unknown fields.** A field the
+server silently drops is a feature the client believes it has.
 
 **Framework-level 4xx are translated into this shape too.** A caller's mistake must never
 surface as `internal_error`.

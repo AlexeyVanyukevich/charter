@@ -25,12 +25,12 @@ cd ../..
 # 2. The ignore files ship and carry the entries every project needs. They are copied rather
 #    than referenced, so this proves availability, not application.
 for entry in 'node_modules/' 'dist/' '.env' '.DS_Store'; do
-  grep -qx -- "$entry" common/ignore/gitignore ||
-    { echo "  ✗ common/ignore/gitignore is missing $entry"; exit 1; }
+  grep -qx -- "$entry" core/ignore/gitignore ||
+    { echo "  ✗ core/ignore/gitignore is missing $entry"; exit 1; }
 done
 for entry in 'node_modules' 'dist' 'test-results' 'playwright-report'; do
-  grep -qx -- "$entry" common/ignore/prettierignore ||
-    { echo "  ✗ common/ignore/prettierignore is missing $entry"; exit 1; }
+  grep -qx -- "$entry" core/ignore/prettierignore ||
+    { echo "  ✗ core/ignore/prettierignore is missing $entry"; exit 1; }
 done
 
-echo "  ✓ prettier config resolves and applies; ignore files ship with the common core"
+echo "  ✓ prettier config resolves and applies; ignore files ship with core"
