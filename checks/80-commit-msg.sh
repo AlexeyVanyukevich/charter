@@ -105,6 +105,14 @@ git -C "$repo" config core.hooksPath .githooks
 ( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed with core.hooksPath"
 [ -f "$repo/.githooks/commit-msg" ] || fail "need_hooks ignored core.hooksPath"
 
+# A wrapper an older kit wrote is brought up to date, not taken for the project's own hook.
+repo="$tmp/outdated"
+git init -q "$repo"
+printf '#!/bin/sh\n# dev-kit commit-msg\nf=node_modules/dev-kit/common/hooks/commit-msg\n[ -f "$f" ] || exit 0\nexec bash "$f" "$@"\n' \
+  > "$repo/.git/hooks/commit-msg"
+( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed beside an outdated wrapper"
+grep -q 'was not checked' "$repo/.git/hooks/commit-msg" || fail "need_hooks left an outdated wrapper as it was"
+
 # Outside a repository there is nothing to install into, and ./run must not fail over that.
 mkdir -p "$tmp/plain"
 ( cd "$tmp/plain" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed outside a repository"
@@ -126,10 +134,13 @@ git -C "$consumer" add .gitignore
 git -C "$consumer" commit -q -m 'Fix: x' 2>/dev/null && fail "git accepted 'Fix: x' with the hook installed"
 git -C "$consumer" commit -q -m 'fix: x' 2>/dev/null || fail "git refused 'fix: x' with the hook installed"
 
-# Before the kit is installed — a fresh clone — the wrapper lets every commit through.
+# Before the kit is installed — a fresh clone — the wrapper lets every commit through, and says
+# that nothing was checked rather than passing in silence.
 rm -rf "$consumer/node_modules"
-git -C "$consumer" commit -q --allow-empty -m 'Fix: y' 2>/dev/null ||
+err="$(git -C "$consumer" commit -q --allow-empty -m 'Fix: y' 2>&1 >/dev/null)" ||
   fail "with the kit not installed, the wrapper still refused a commit"
+grep -q 'was not checked' <<< "$err" ||
+  fail "with the kit not installed, the wrapper let the commit through without saying so: got '$err'"
 
 echo "  ✓ the commit-msg hook judges $checked messages as the commit rule does; need_hooks installs it"
 echo "    once, beside nothing foreign, where core.hooksPath points, and git enforces it"
