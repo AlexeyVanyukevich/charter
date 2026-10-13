@@ -1,4 +1,4 @@
-# dev-kit 3.0 — load tiers, domains and stacks
+# charter 3.0 — load tiers, domains and stacks
 
 Status: **designed**, 2026-10-13. Not built.
 
@@ -18,13 +18,26 @@ Status: **designed**, 2026-10-13. Not built.
 **A rule loads only when the work in front of Claude needs it, and the kit is laid out so that
 rules hold in any language and tools are a separate, per-stack concern.**
 
-This is the roadmap's release 3.0. It delivers the three load tiers, `dev-kit sync` behind a
+This is the roadmap's release 3.0. It delivers the three load tiers, `charter sync` behind a
 `SessionStart` hook, the manifest, the new `init`, and the domain and stack layout. It moves
 backend's three task rules to the path tier, which takes the backlog entry "Rules for particular
 tasks and files load in every session".
 
 The roadmap gives the reasons for the tiers, for synced git-ignored copies over links or
 committed copies, and for the npm package as the vehicle. They are not repeated here.
+
+### The kit is renamed `charter`
+
+"dev-kit" names one phase of three, and names it as tooling. The kit now sets the rules an
+application is written by — requirements, development, verification — in any language, which
+is what a charter is. The rename rides on 3.0 because 3.0 already changes every path a
+consuming project writes: one migration, not two.
+
+The name reaches the package, the command, every `node_modules/…` path and specifier, the
+manifest, the synced rules directory, the hook command, the commit-msg wrapper's marker and the
+repository. Like the old name, `charter` is taken on the public npm registry: installing it by
+name without the project's `.npmrc` still gets a stranger's package, and an accidental public
+publish still fails. The private registry, not the name, is what keeps the package private.
 
 ## 2. Layout
 
@@ -45,7 +58,7 @@ stacks/
   node/                  tsconfig.json, oxlint.json, rules/typescript.md
   react/                 tsconfig.json, oxlint.json, plugins.json, rules/typescript.md
   vitest/                oxlint.json
-bin/dev-kit.mjs          init, sync
+bin/charter.mjs          init, sync
 ```
 
 | 2.x | 3.0 |
@@ -104,16 +117,16 @@ saving in backend is `http.md` and `database-tests.md`, 37 of the 60 lines.
 `sync` writes each pattern with the workspace's path in front: for workspace `server`,
 `src/modules/**` becomes `server/src/modules/**`. The root workspace, `.`, gets none.
 
-### `dev-kit sync`
+### `charter sync`
 
-- **Reads** the manifest at the project root and the installed kit at `node_modules/dev-kit`.
-- **Writes** a mirror at `.claude/rules/dev-kit/<workspace>/<module>/<rule>.md`. The root
+- **Reads** the manifest at the project root and the installed kit at `node_modules/charter`.
+- **Writes** a mirror at `.claude/rules/charter/<workspace>/<module>/<rule>.md`. The root
   workspace's directory is `@root`; a nested workspace keeps its path (`server/api/…`). Two
   workspaces' rules never collide, because a deeper workspace's rules sit one level deeper.
 - **Computes everything before writing anything.** An invalid manifest, an unknown module or a
   missing workspace directory leaves every file as it was, prints the cause to stderr and exits
   1. Otherwise it writes only files whose content changed, deletes files the kit no longer
-  ships, and removes emptied directories. It touches nothing outside `.claude/rules/dev-kit/`.
+  ships, and removes emptied directories. It touches nothing outside `.claude/rules/charter/`.
 - **Prints nothing to stdout on success.** Claude Code adds a `SessionStart` hook's stdout to
   the context, so anything printed there costs tokens in every session. A non-zero exit is shown
   to the person, not the model.
@@ -124,7 +137,7 @@ saving in backend is `http.md` and `database-tests.md`, 37 of the 60 lines.
 
 ## 4. The consuming project
 
-### The manifest, `dev-kit.json`, at the root
+### The manifest, `charter.json`, at the root
 
 ```json
 { "workspaces": { ".": ["backend", "typescript", "node", "vitest"] } }
@@ -143,13 +156,13 @@ A repository with a Node server and a React client:
 
 `core` is implied. Module names are unique across `domains/` and `stacks/`.
 
-### `npx dev-kit init [<module…>] [--workspace <dir>]`
+### `npx charter init [<module…>] [--workspace <dir>]`
 
 It still adds what is missing and changes nothing that is set:
 
 - **The manifest:** adds the modules to the workspace's entry, creating the file if needed.
   Nothing is removed.
-- **The root `CLAUDE.md`:** adds `@node_modules/dev-kit/core/rules.md`. Workspace `CLAUDE.md`
+- **The root `CLAUDE.md`:** adds `@node_modules/charter/core/rules.md`. Workspace `CLAUDE.md`
   imports are no longer needed: rules are scoped by path, so one session at the root works on
   every workspace without loading the others' rules.
 - **`.claude/settings.json`:** adds the `SessionStart` hook unless a hook with the same command
@@ -157,10 +170,10 @@ It still adds what is missing and changes nothing that is set:
   matcher, so it runs on `startup`, `resume`, `clear` and `compact`:
 
   ```
-  node "$CLAUDE_PROJECT_DIR/node_modules/dev-kit/bin/dev-kit.mjs" sync
+  node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync
   ```
 
-- **`.gitignore`:** adds `.claude/rules/dev-kit/`.
+- **`.gitignore`:** adds `.claude/rules/charter/`.
 - **Then** runs `sync`, `need_plugins` and `need_hooks` — the last always now, because the
   commit rule is in `core`.
 
@@ -179,7 +192,9 @@ recognises its own wrapper.
 
 So, in 3.0:
 
-- `need_hooks` rewrites its own wrapper when the content differs. A project's own hook is still
+- `need_hooks` rewrites its own wrapper when the content differs. It recognises both markers as
+  its own — 2.x's `# dev-kit commit-msg` and 3.0's `# charter commit-msg` — or it would take a
+  2.x wrapper for the project's own hook and leave it broken. A project's own hook is still
   never touched.
 - The wrapper still lets the commit through when the script is missing, but says on stderr that
   nothing was checked and how to fix it.
@@ -190,24 +205,24 @@ Specifiers follow the filesystem, so a reader learns one layout:
 
 | 2.x | 3.0 |
 | --- | --- |
-| `dev-kit/common/tsconfig` | `dev-kit/stacks/typescript/tsconfig` |
-| `dev-kit/backend/tsconfig` | `dev-kit/stacks/node/tsconfig` |
-| `dev-kit/ui/tsconfig` | `dev-kit/stacks/react/tsconfig` |
-| `dev-kit/common/prettier` | `dev-kit/stacks/typescript/prettier` |
-| `node_modules/dev-kit/{common,backend,ui,testing}/oxlint.json` | `node_modules/dev-kit/stacks/{typescript,node,react,vitest}/oxlint.json` |
-| `node_modules/dev-kit/common/lib.sh` | `node_modules/dev-kit/core/lib.sh` |
-| `node_modules/dev-kit/common/ignore/…` | `node_modules/dev-kit/core/ignore/…` |
-| `@…/dev-kit/{common,backend,ui,testing}/rules.md` | `@node_modules/dev-kit/core/rules.md` at the root; the rest through `init` |
+| `dev-kit/common/tsconfig` | `charter/stacks/typescript/tsconfig` |
+| `dev-kit/backend/tsconfig` | `charter/stacks/node/tsconfig` |
+| `dev-kit/ui/tsconfig` | `charter/stacks/react/tsconfig` |
+| `dev-kit/common/prettier` | `charter/stacks/typescript/prettier` |
+| `node_modules/dev-kit/{common,backend,ui,testing}/oxlint.json` | `node_modules/charter/stacks/{typescript,node,react,vitest}/oxlint.json` |
+| `node_modules/dev-kit/common/lib.sh` | `node_modules/charter/core/lib.sh` |
+| `node_modules/dev-kit/common/ignore/…` | `node_modules/charter/core/ignore/…` |
+| `@…/dev-kit/{common,backend,ui,testing}/rules.md` | `@node_modules/charter/core/rules.md` at the root; the rest through `init` |
 
 ### Migrating from 2.x
 
 A README section, done by hand:
 
-1. `npm install -D dev-kit@^3`.
+1. Replace the dependency: `npm uninstall dev-kit`, then `npm install -D charter@^3`.
 2. Change each path by the table, including the `source` line in `./run`. A `./run` still
    pointing at `common/lib.sh` fails loudly, not silently.
 3. Delete the 2.x section imports from every `CLAUDE.md`.
-4. Run `npx dev-kit init <modules> [--workspace <dir>]` for each workspace. It writes the
+4. Run `npx charter init <modules> [--workspace <dir>]` for each workspace. It writes the
    manifest, the hook and the `.gitignore` line, and rewrites the commit-msg wrapper.
 
 `init` could delete the dead imports of step 3 itself. It does not, because that breaks its rule
@@ -242,7 +257,7 @@ Each check still runs the tool a consumer would run, against `tests/fixture`.
   - the budgets of §5 hold.
 
   The live session runs in a scratch consumer holding the unpacked `npm pack` tarball, set up by
-  a real `npx dev-kit init`, so the hook, the manifest and `sync` are tested together:
+  a real `npx charter init`, so the hook, the manifest and `sync` are tested together:
   1. a fact from `core` is known at once;
   2. `forbidden_origin`, from `http.md`, is unknown after reading a file outside its globs;
   3. it is known after reading a file under `src/modules/`.
@@ -265,7 +280,8 @@ Each check still runs the tool a consumer would run, against `tests/fixture`.
   - a nested workspace.
 - **50-lib, 80-commit-msg:**
   - the new paths;
-  - `need_hooks` rewrites its own outdated wrapper and leaves a project's own hook alone;
+  - `need_hooks` rewrites its own outdated wrapper, a 2.x one carrying the `dev-kit` marker
+    included, and leaves a project's own hook alone;
   - the wrapper warns when the script is missing.
 
 ## 7. Evidence
@@ -283,7 +299,13 @@ each session, so only the hook wrote them.
 
 ## 8. Release
 
-**3.0.0.** Every path a consuming project writes changes.
+**3.0.0.** Every path a consuming project writes changes, and so does the package's name.
+
+- **The name:** `package.json`'s `name`, `bin` and `repository`, the README, this repository's
+  `CLAUDE.md` and every check change to `charter`. The first `charter` release is 3.0.0; no
+  `dev-kit` 3.x is published. Renaming the repository on GitHub is the owner's step, taken
+  before the release: GitHub redirects the old URL, but the git install form
+  `github:<owner>/charter#v3.0.0` names the new one.
 
 - **README:** the modules, onboarding and `./run` sections are rewritten. "Migrating from 2.x"
   joins "Migrating from 1.x". 60-readme skips everything from the first migration heading down.

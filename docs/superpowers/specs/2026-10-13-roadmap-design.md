@@ -1,4 +1,4 @@
-# dev-kit — roadmap: phases, domains and stacks
+# charter (formerly dev-kit) — roadmap: phases, domains and stacks
 
 Status: **designed**, 2026-10-13. Not built.
 
@@ -47,6 +47,11 @@ of the shared core — the commit rule, the review rule, the evidence format eac
 the next. Nothing is gained while one maintainer owns all three. A module that grows its own
 audience can be split out then.
 
+### The kit is renamed `charter` in 3.0
+
+"dev-kit" names one phase of three, as tooling. 3.0 already changes every path a consuming
+project writes, so the rename rides on it. The 3.0 spec gives the details.
+
 ### Phases run as roles with their own context
 
 At any moment the work is in one phase. A session writing requirements does not need the HTTP
@@ -64,7 +69,7 @@ The phases are connected by artefacts, not by conversation:
 - a verification report gives each criterion its evidence — a command's output, an end-to-end
   trace, a screenshot — or a bug report.
 
-This makes "it was verified" checkable by a tool: `dev-kit verify` lists criteria with no test
+This makes "it was verified" checkable by a tool: `charter verify` lists criteria with no test
 and tests with no evidence. Verification is the kit's existing review rule
 (`common/rules/review.md`) turned from prose into a contract.
 
@@ -125,8 +130,8 @@ changed.
 
 ### Path and task tiers are synced, git-ignored copies
 
-A `SessionStart` hook in the project's committed `.claude/settings.json` runs `dev-kit sync`,
-which mirrors the installed version's path-scoped rules into `.claude/rules/dev-kit/` and its
+A `SessionStart` hook in the project's committed `.claude/settings.json` runs `charter sync`,
+which mirrors the installed version's path-scoped rules into `.claude/rules/charter/` and its
 skills into `.claude/skills/`. Both are git-ignored. Each machine's copies match its own
 installed version, so nothing generated is committed and nothing churns.
 
@@ -167,8 +172,8 @@ per-workspace `CLAUDE.md` imports both go away.
 
 A config CI must read (a tsconfig, a lint config) lives in the repository. Where the tool
 resolves `extends` from a package, the project keeps extending the kit, as it does today. Where
-it cannot, the config is a committed copy, written only by an explicit `dev-kit init` or
-`dev-kit upgrade` — never by the hook. The version is pinned once per project, so every
+it cannot, the config is a committed copy, written only by an explicit `charter init` or
+`charter upgrade` — never by the hook. The version is pinned once per project, so every
 developer writes the same copy.
 
 ### Stacks are added for a real project, not in advance
@@ -181,7 +186,7 @@ stack is planned.
 ## 3. Layout
 
 ```
-dev-kit/
+charter/
   core/            rules for every project, the commit-msg hook, the evidence format
   phases/
     requirements/  the requirements skill, the requirement template with criterion identifiers
@@ -193,7 +198,7 @@ dev-kit/
   stacks/
     typescript/    tsconfig, Prettier, oxlint, TypeScript rules
     react/         React rules, the lint plugin config
-  bin/dev-kit      init, sync, upgrade, verify
+  bin/charter      init, sync, upgrade, verify
 ```
 
 Today's sections map onto it:
@@ -217,10 +222,10 @@ Each row is one slice with its own spec, plan and release.
 
 | Release | Delivers | Token effect, estimated from today's line counts |
 | --- | --- | --- |
-| **3.0 — foundation** | the three tiers; `sync` through the hook; the manifest; `init` and `upgrade`; the domain and stack layout; backend's three rules move to the path tier | about 60 lines off a backend session |
+| **3.0 — foundation** | the rename to `charter`; the three tiers; `sync` through the hook; the manifest; `init` and `upgrade`; the domain and stack layout; backend's three rules move to the path tier | about 60 lines off a backend session |
 | **3.1 — requirements** | the requirements skill and template with criterion identifiers; the spec-and-plan workflow becomes a skill | about 25 lines off every session |
 | **3.2 — development** | unit, integration and end-to-end conventions; criterion identifiers in tests; coverage thresholds as a check | test rules move to the path tier |
-| **3.3 — verification** | the verification agent; evidence reports; bug reports; `dev-kit verify` | verification runs in its own context |
+| **3.3 — verification** | the verification agent; evidence reports; bug reports; `charter verify` | verification runs in its own context |
 | **4.0 — any language** | delivery without Node — a manifest and a release fetched from git — and the first stack outside JavaScript, when a project needs it | — |
 
 3.0 changes every path a consuming project writes, so it is a major release, with a migration
@@ -261,7 +266,7 @@ a matching file is read. That result is why the always-on tier stays an import.
 
 Each is probed at the start of the release that depends on it:
 
-- **3.0:** the hook on Windows; a pnpm install, where `node_modules/dev-kit` is itself a link;
+- **3.0:** the hook on Windows; a pnpm install, where `node_modules/charter` is itself a link;
   repeated runs of the absent and present cases, not one each.
 - **3.1:** whether skills written by the hook load once it returns `reloadSkills`; whether a
   skill with `paths:` loads by itself on a match or only becomes available to choose.
