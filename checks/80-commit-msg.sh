@@ -68,4 +68,68 @@ while IFS='|' read -r expect reason message; do
   checked=$((checked + 1))
 done <<< "$cases"
 
-echo "  ✓ the commit-msg hook judges $checked messages as the commit rule does"
+# ── need_hooks ────────────────────────────────────────────────────────────────
+
+# This machine's own git config must not decide where hooks land or who commits.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_AUTHOR_NAME=check GIT_AUTHOR_EMAIL=check@example.com
+export GIT_COMMITTER_NAME=check GIT_COMMITTER_EMAIL=check@example.com
+lib="$PWD/common/lib.sh"
+
+repo="$tmp/repo"
+git init -q "$repo"
+( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed in a fresh repository"
+installed="$repo/.git/hooks/commit-msg"
+[ -x "$installed" ] || fail "need_hooks did not write an executable .git/hooks/commit-msg"
+grep -qx '# dev-kit commit-msg' "$installed" || fail "the installed hook carries no dev-kit marker"
+
+# A second run is silent and changes nothing.
+cp "$installed" "$tmp/hook.before"
+out="$(cd "$repo" && source "$lib" && need_hooks)" || fail "a second need_hooks failed"
+[ -z "$out" ] || fail "a second need_hooks printed '$out'"
+cmp -s "$installed" "$tmp/hook.before" || fail "a second need_hooks rewrote the hook"
+
+# A project's own hook is never replaced; the developer is told the kit's is not installed.
+repo="$tmp/foreign"
+git init -q "$repo"
+printf '#!/bin/sh\nexit 0\n' > "$repo/.git/hooks/commit-msg"
+cp "$repo/.git/hooks/commit-msg" "$tmp/hook.before"
+out="$(cd "$repo" && source "$lib" && need_hooks)" || fail "need_hooks failed beside a foreign hook"
+cmp -s "$repo/.git/hooks/commit-msg" "$tmp/hook.before" || fail "need_hooks replaced a foreign hook"
+grep -q 'commit-msg' <<< "$out" || fail "need_hooks said nothing about the foreign hook: got '$out'"
+
+# core.hooksPath moves the hooks directory, and the hook goes where git will look for it.
+repo="$tmp/hookspath"
+git init -q "$repo"
+git -C "$repo" config core.hooksPath .githooks
+( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed with core.hooksPath"
+[ -f "$repo/.githooks/commit-msg" ] || fail "need_hooks ignored core.hooksPath"
+
+# Outside a repository there is nothing to install into, and ./run must not fail over that.
+mkdir -p "$tmp/plain"
+( cd "$tmp/plain" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed outside a repository"
+[ -z "$(ls -A "$tmp/plain")" ] || fail "need_hooks wrote files outside a repository"
+
+# ── end to end ────────────────────────────────────────────────────────────────
+
+# A consumer holding the unpacked tarball, as a registry or git install gives it: proves the
+# wrapper reaches the script and that git refuses, not just that the script exits 1.
+consumer="$tmp/consumer"
+mkdir -p "$consumer/node_modules/dev-kit"
+tarball="$(npm pack --silent --pack-destination "$tmp")"
+tar -xzf "$tmp/$tarball" -C "$consumer/node_modules/dev-kit" --strip-components 1
+git init -q "$consumer"
+echo 'node_modules/' > "$consumer/.gitignore"
+git -C "$consumer" add .gitignore
+( cd "$consumer" && source node_modules/dev-kit/common/lib.sh && need_hooks ) >/dev/null ||
+  fail "need_hooks failed in a consumer"
+git -C "$consumer" commit -q -m 'Fix: x' 2>/dev/null && fail "git accepted 'Fix: x' with the hook installed"
+git -C "$consumer" commit -q -m 'fix: x' 2>/dev/null || fail "git refused 'fix: x' with the hook installed"
+
+# Before the kit is installed — a fresh clone — the wrapper lets every commit through.
+rm -rf "$consumer/node_modules"
+git -C "$consumer" commit -q --allow-empty -m 'Fix: y' 2>/dev/null ||
+  fail "with the kit not installed, the wrapper still refused a commit"
+
+echo "  ✓ the commit-msg hook judges $checked messages as the commit rule does; need_hooks installs it"
+echo "    once, beside nothing foreign, where core.hooksPath points, and git enforces it"

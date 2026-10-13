@@ -134,8 +134,9 @@ for (const line of imports) {
   console.log(newImports.includes(line) ? `✓ ${shown}: ${line}` : `  ${shown} already has ${line}`)
 }
 
+// common carries the commit rule, so it alone brings the hook that enforces it.
 const lib = join(kit, 'common', 'lib.sh')
-const run = spawnSync('bash', ['-c', 'source "$1" && need_plugins', 'need_plugins', lib], {
-  stdio: 'inherit',
-})
+const hooks = options.sections.includes('common') ? 'yes' : 'no'
+const script = 'source "$1" && need_plugins && if [ "$2" = yes ]; then need_hooks; fi'
+const run = spawnSync('bash', ['-c', script, 'dev-kit', lib, hooks], { stdio: 'inherit' })
 process.exit(run.status ?? 1)

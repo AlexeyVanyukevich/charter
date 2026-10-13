@@ -109,6 +109,20 @@ grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
   fail "a workspace's plugins did not land in the root settings.json"
 [ ! -e "$p/apps/web/.claude" ] || fail "a workspace got its own .claude directory"
 
+# ── the commit-msg hook ───────────────────────────────────────────────────────
+
+# common carries the commit rule, so init common installs its hook; another section does not.
+# This machine's own git config must not decide where the hook lands.
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+p="$(project hooked)"
+git -C "$p" init -q
+( cd "$p" && node "$cli" init common ) >/dev/null || fail "init common in a repository failed"
+[ -f "$p/.git/hooks/commit-msg" ] || fail "init common did not install the commit-msg hook"
+p="$(project unhooked)"
+git -C "$p" init -q
+( cd "$p" && node "$cli" init ui ) >/dev/null || fail "init ui in a repository failed"
+[ ! -e "$p/.git/hooks/commit-msg" ] || fail "init ui installed the commit-msg hook"
+
 # ── refusals: non-zero, and nothing written ───────────────────────────────────
 
 refuses() {
