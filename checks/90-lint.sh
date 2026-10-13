@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Each section's lint config fires the rules it promises, holds the exceptions it makes, and
+# Each stack's lint config fires the rules it promises, holds the exceptions it makes, and
 # merges with the others the way the README tells a project to combine them.
 set -euo pipefail
 
@@ -14,8 +14,8 @@ fail() { echo "  ✗ $*"; exit 1; }
 
 # A project's .oxlintrc.json, extending the named stacks in the order given.
 config() {
-  local section list=''
-  for section in "$@"; do list+="${list:+, }\"$kit/stacks/$section/oxlint.json\""; done
+  local stack list=''
+  for stack in "$@"; do list+="${list:+, }\"$kit/stacks/$stack/oxlint.json\""; done
   echo "{ \"extends\": [$list] }" > "$tmp/oxlintrc.json"
 }
 
@@ -33,7 +33,7 @@ fired() {
   echo "${rules:--}"
 }
 
-# One row per case: the sections extended, the files under tests/fixture/lint, and exactly the
+# One row per case: the stacks extended, the files under tests/fixture/lint, and exactly the
 # rules expected to fire. Exactly, not at least: a rule the kit turned off that fires anyway is
 # as much a failure as a promised rule that does not.
 IFS= read -r -d '' cases <<'ROWS' || true
@@ -57,13 +57,13 @@ ROWS
 cases="${cases%$'\n'}"
 
 checked=0
-while IFS='|' read -r sections files expected; do
+while IFS='|' read -r stacks files expected; do
   # shellcheck disable=SC2086
-  config $sections
+  config $stacks
   # shellcheck disable=SC2086
-  got="$(fired $files)" || fail "oxlint could not lint $files under $sections"
+  got="$(fired $files)" || fail "oxlint could not lint $files under $stacks"
   [ "$got" = "$expected" ] ||
-    fail "under $sections, $files fired '$got'; expected '$expected'"
+    fail "under $stacks, $files fired '$got'; expected '$expected'"
   checked=$((checked + 1))
 done <<< "$cases"
 
@@ -78,5 +78,5 @@ out="$(cd "$tmp/bare" && env -u OXLINT_TSGOLINT_PATH "$oxlint" -c "$tmp/oxlintrc
 grep -q 'oxlint-tsgolint' <<< "$out" ||
   { echo "  ✗ without oxlint-tsgolint, oxlint failed without naming it:"; echo "$out"; exit 1; }
 
-echo "  ✓ $checked lint cases fire exactly what each section promises, and type-aware rules"
+echo "  ✓ $checked lint cases fire exactly what each stack promises, and type-aware rules"
 echo "    need oxlint-tsgolint"

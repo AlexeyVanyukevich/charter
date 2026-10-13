@@ -11,6 +11,17 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in the projects onboarded before `common` stopped
 turning it on.
 
+## The sync hook has never run on Windows
+
+- Where: the `SessionStart` hook `charter init` writes, `node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync`
+- Found: 2026-10-13, while designing 3.0
+- Priority: P2 — some consuming projects are developed on Windows
+- Problem: the command relies on `"$CLAUDE_PROJECT_DIR"` being expanded, which depends on the
+  shell Claude Code runs hooks through on Windows. Nothing here has run it there. Start a
+  session on a Windows checkout and look for `.claude/rules/charter/`.
+- Impact: if the variable is not expanded, `sync` never runs on that machine and no path rule
+  loads there — silently, since the hook's error is shown to the person, not the model.
+
 ## Two `superpowers` skills give opposite review ranges
 
 - Where: the `superpowers` skills `requesting-code-review`, line 28, and

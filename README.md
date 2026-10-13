@@ -1,8 +1,10 @@
 # charter
 
-Shared conventions and tooling configuration for the projects on this machine, in four
-sections — `common`, `backend`, `ui`, `testing`. A project loads the sections it needs, and
-nothing from the others comes with them.
+The rules an application is written by, and the tooling configuration that goes with them,
+for the projects on this machine. They come in modules: `core` for every project; domains
+(`backend`) for principles that hold in any language; stacks (`typescript`, `node`, `react`,
+`vitest`) for a language's tools. Rules load by tier, so a session reads `core` always and the
+rest only where it works.
 
 This is never published to the public npm registry. A package called `charter` on the public
 registry is an unrelated project and is not this one.
@@ -20,9 +22,9 @@ project<, with tests>.
 1. Create package.json if there is none. Install charter as a devDependency from
    <kit source>. If you cannot reach it, stop and ask me; do not install a package named
    charter from the public registry.
-2. Read node_modules/charter/README.md and follow it for this project's sections:
-   `npx charter init`, the tsconfig, the Prettier key, the ignore files, and a ./run frame
-   that calls need_node, need_deps and need_plugins.
+2. Read node_modules/charter/README.md and follow it for this project's modules:
+   `npx charter init <modules>`, the tsconfig, the Prettier key, the ignore files, and a
+   ./run frame that calls need_node, need_deps and need_plugins.
 3. Run ./run, then show me every file you created or changed.
 ```
 
@@ -90,79 +92,114 @@ secret while npm keeps the workflow's token for GitHub Packages. **Without
 repository's git config, git sends it ahead of any credential helper, and GitHub answers
 "Repository not found".
 
-## Sections
 
-| Section | For | Brings |
-| ------- | --- | ------ |
-| `common` | every project | six rules, the commit-msg hook, a lint config, the TypeScript base, Prettier, the `./run` skeleton, ignore files |
-| `backend` | Node services | four rules, a lint config, the NodeNext tsconfig |
-| `ui` | bundled browser applications | one rule, a lint config, the browser tsconfig, the `frontend-design` and `playwright` plugins |
-| `testing` | any project with a test suite | one rule, a lint config |
+## Modules
 
-**No section loads another.** A backend project with tests writes `common`, `backend` and
-`testing` as three lines; nothing arrives that it did not name. A section's rules come as one
-line; its configuration — tsconfig, lint, Prettier, `./run`, ignore files — is still taken one
-piece at a time, and a project that wants none of it writes none of it.
+| Module | Kind | For | Brings |
+| ------ | ---- | --- | ------ |
+| `core` | — | every project | six rules, loaded always; the commit-msg hook; `lib.sh`; ignore files |
+| `backend` | domain | HTTP services | three rules, by path |
+| `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
+| `node` | stack | Node services | one rule, by path; the NodeNext tsconfig; a lint config |
+| `react` | stack | bundled browser applications | one rule, by path; the browser tsconfig; a lint config; the `frontend-design` and `playwright` plugins |
+| `vitest` | stack | a Vitest suite | a lint config |
 
-### A repository with both a backend and a UI
-
-Load `common` and `testing` in the root `CLAUDE.md`, `backend` in the server workspace's
-`CLAUDE.md`, and `ui` in the web workspace's. Claude Code reads a subdirectory's `CLAUDE.md`
-when it works on files there, so each workspace gets its own section and not the other's.
-
-**An import is relative to the `CLAUDE.md` that holds it,** and a workspace manager hoists the
-kit to the root `node_modules`. A workspace one level down therefore imports one level up —
-written as `@node_modules/…` it loads nothing, and says nothing:
-
-```markdown
-```
-
-Start sessions at the repository root. A session started inside a workspace treats the root's
-`node_modules` as outside the project and does not follow the import at all.
-
-Loading all four at the root is the obvious move and the wrong one: every session would read
-both, and the rules budget assumes no session does.
+`core` needs no naming: every project has it. A workspace takes a domain and its stacks — a
+Node service writes `backend`, `typescript`, `node` and `vitest`. **`node` and `react` never
+share a workspace,** because their import rules contradict: NodeNext wants a `.js` extension
+on a relative import, a bundler wants none. `init` refuses the pair.
 
 ## Onboarding a project
 
-Once the kit is installed, one command turns on the Claude Code plugins a project's sections
-need and imports their rules:
+Once the kit is installed, one command per workspace records its modules and wires the project:
 
 ```bash
-npx charter init common testing
+npx charter init backend typescript node vitest
 ```
 
-| Section | Turns on |
-| ------- | -------- |
-| `ui` | `frontend-design`, `playwright` |
-
-`common` turns on nothing. It no longer brings `superpowers`: that plugin's session-start text
-tells every session to load a skill on "even a 1% chance", so process skills fire on one-line
-tasks in every project. A project that wants it turns it on itself.
-
-The plugins go in the root `.claude/settings.json`, at project scope: they load in this
-repository's sessions and in no other. Commit the file. The imports go in `CLAUDE.md`. A
-section's plugins are listed in its `plugins.json`, and a section without one brings none.
-
-A repository with a server and a web workspace runs it once per directory. The imports land in
-each workspace's `CLAUDE.md`, climbing back to the root's `node_modules`; the plugins always
-land in the root's settings, because Claude Code enables a plugin per repository:
+A repository with a server and a web workspace runs it once per directory, at the repository
+root:
 
 ```bash
-npx charter init common testing
-npx charter init backend --workspace server
-npx charter init ui --workspace web
+npx charter init backend typescript node vitest --workspace server
+npx charter init typescript react vitest --workspace web
 ```
 
-Running it again adds only what is missing. A plugin set to `false` stays off. `backend` and
-`ui` in one directory is refused, for the reason given above.
+`init` with no modules is valid and brings `core` alone. It writes the modules into
+`charter.json` at the root, which `sync` reads:
+
+```json
+{
+  "workspaces": {
+    "server": ["backend", "typescript", "node", "vitest"],
+    "web": ["typescript", "react", "vitest"]
+  }
+}
+```
+
+and then adds what is missing, changing nothing that is set:
+
+- `@node_modules/charter/core/rules.md` in the root `CLAUDE.md`. A workspace needs no
+  `CLAUDE.md` import of its own: rules are scoped by path.
+- in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync`, and the plugins
+  of the named modules, which are listed in a module's `plugins.json`. Only `react` has one:
+  `frontend-design` and `playwright`. A plugin set to `false` stays off.
+- `.claude/rules/charter/` in `.gitignore`.
+
+It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is
+missing. It refuses to run away from the repository root (where `node_modules/charter` is), on
+an unknown module, on a workspace that is missing or outside the repository, on a workspace
+named `@root`, and on `node` and `react` in one workspace.
+
+Commit `charter.json`, `CLAUDE.md`, `.claude/settings.json` and `.gitignore`. **Never commit
+`.claude/rules/charter/`:** it is a mirror that `sync` rebuilds at every session start. Start
+sessions anywhere in the repository — rules are scoped by path, not by directory.
 
 **A committed plugin is turned on, not downloaded.** Each clone installs it once:
-`need_plugins`, in the `./run` frame below, does that, and `init` runs it before it finishes.
-When `common` is among the sections, `init` also runs `need_hooks`, which installs the
-commit-msg hook below.
+`need_plugins`, in the `./run` frame below, does that.
 
-## The modules
+## Rules
+
+Rules load in three tiers:
+
+- **Always** — `core`, through the one import in the root `CLAUDE.md`.
+- **By path** — every other module's rules. A rule loads once Claude reads a file that matches
+  its `paths:`. `charter sync` delivers them.
+- **By task** — none yet. Skills arrive in 3.1.
+
+`charter sync` takes no arguments and prints nothing on success. Its root is `CLAUDE_PROJECT_DIR`,
+which the hook sets, and otherwise the working directory. It reads `charter.json` and writes a
+mirror at `.claude/rules/charter/<workspace>/<module>/<rule>.md`, with the root workspace as
+`@root`. It prefixes each pattern with the workspace's path — for the workspace `server`,
+`src/modules/**` becomes `server/src/modules/**` — and copies the rest of the rule unchanged.
+It deletes mirrored files the kit no longer ships. An invalid manifest, an unknown module or a
+missing workspace directory is refused before anything is written, with the cause on stderr.
+
+| Module | Rule | `paths:` | Covers |
+| ------ | ---- | -------- | ------ |
+| `core` | `commits.md` | always | Conventional Commits, the subject line as the whole message, rebase-only merges, release commits |
+| `core` | `documentation.md` | always | `architecture.md` is authoritative; specs and plans are dated records |
+| `core` | `writing.md` | always | Refer to projects by role; name something only when the name is load-bearing |
+| `core` | `review.md` | always | A session ends by showing everything it changed, and what it decided alone |
+| `core` | `backlog.md` | always | Findings left unfixed go in `docs/backlog.md`, one entry each, deleted by the fix |
+| `core` | `testing.md` | always | Tests first, datasets over test bodies, derived facts, where tests live |
+| `backend` | `http.md` | `src/*`, `src/modules/**`, `src/shared/**` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
+| `backend` | `layout.md` | `src/**` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |
+| `backend` | `database-tests.md` | `tests/integration/**` | Integration tests against a real PostgreSQL, started by Testcontainers |
+| `typescript` | `typescript.md` | `**/*.{ts,tsx,mts,cts}`, `**/tsconfig*.json` | Compiler strictness, no `any` in hand-written code |
+| `node` | `typescript.md` | `**/*.{ts,mts,cts}`, `**/tsconfig*.json` | NodeNext's `.js` imports, the `typebox` package, the one accepted `any` |
+| `react` | `typescript.md` | `**/*.{ts,tsx}` | Bundler resolution: no extension on relative imports |
+
+**`core` must be installed as a real directory** — from the registry or over git, as above.
+`npm link` and a `file:` dependency install a symlink, and Claude Code does not follow an
+import through a symlink that leads out of the project: the session reads the `core` heading
+and none of its rules.
+
+The import is a **filesystem path, not a module specifier**. It never touches npm's resolver,
+which is why it appears in no `exports` map and why adding a rule needs no `package.json`
+change.
+
+## Configuration
 
 ### TypeScript
 
@@ -173,7 +210,8 @@ commit-msg hook below.
 `charter/stacks/typescript/tsconfig` carries the strictness: `strict`, `noUncheckedIndexedAccess`,
 `exactOptionalPropertyTypes`, `target: ES2023`. `charter/stacks/node/tsconfig` adds NodeNext
 resolution and Node types; `charter/stacks/react/tsconfig` adds the DOM lib, bundler resolution and
-`jsx: react-jsx`. A workspace that is neither extends `charter/stacks/typescript/tsconfig` directly.
+`jsx: react-jsx`. A workspace that takes neither stack extends `charter/stacks/typescript/tsconfig`
+directly.
 
 None of the three sets `outDir`, `rootDir` or `include`. Those describe one project's directory
 layout, and a shared base that guesses them is a base every project has to override.
@@ -188,45 +226,11 @@ In the consuming project's `package.json`:
 
 `semi: false`, `singleQuote: true`, `printWidth: 100`.
 
-### Rules
-
-One line per section in the consuming project's `CLAUDE.md`, and only the sections that
-project needs:
-
-```markdown
-@node_modules/charter/core/rules.md
-```
-
-| Section | Rule | Covers |
-| ------- | ---- | ------ |
-| common | `typescript.md` | Compiler strictness, no `any` in hand-written code |
-| common | `commits.md` | Conventional Commits, the subject line as the whole message, rebase-only merges, release commits |
-| common | `documentation.md` | `architecture.md` is authoritative; specs and plans are dated records |
-| common | `writing.md` | Refer to projects by role; name something only when the name is load-bearing |
-| common | `review.md` | A session ends by showing everything it changed, and what it decided alone |
-| common | `backlog.md` | Findings left unfixed go in `docs/backlog.md`, one entry each, deleted by the fix |
-| backend | `typescript.md` | NodeNext's `.js` imports, the `typebox` package, the one accepted `any` |
-| backend | `http.md` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
-| backend | `layout.md` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |
-| backend | `database-tests.md` | Integration tests against a real PostgreSQL, started by Testcontainers |
-| ui | `typescript.md` | Bundler resolution: no extension on relative imports |
-| testing | `testing.md` | Tests first, datasets over test bodies, derived facts, where tests live |
-
-A section's `rules.md` is a heading and one `@rules/<rule>.md` line per file in its `rules/`.
-No section imports another, so a project gets exactly the sections it names.
-
-**The kit must be installed as a real directory** — from the registry or over git, as above.
-`npm link` and a `file:` dependency install a symlink, and Claude Code does not follow an
-index's imports through a symlink that leads out of the project: the session reads the section
-headings and none of the rules.
-
-These are **filesystem paths, not module specifiers**. They never touch npm's resolver, which
-is why they appear in no `exports` map and why adding a rule needs no `package.json` change.
-
 ### Commit messages
 
 `need_hooks`, in the `./run` frame below, installs a `commit-msg` hook into the repository's
-hooks directory, wherever `core.hooksPath` points. `init common` installs it too. The hook
+hooks directory, wherever `core.hooksPath` points. `init` installs it too, because the commit
+rule is in `core`. The hook
 refuses a message that breaks `commits.md` and says which part:
 
 ```text
@@ -238,15 +242,16 @@ the single line with no body or trailer, a subject that does not start with a ca
 with a period, and the 72-character limit. A message beginning `fixup! `, `squash! ` or
 `amend! ` passes, because `git rebase --autosquash` folds it away before it reaches `main`.
 
-The hooks directory holds a five-line wrapper that calls
+The hooks directory holds a short wrapper that calls
 `node_modules/charter/core/hooks/commit-msg`, so an upgrade of the kit upgrades the hook.
-Until the kit is installed, the wrapper lets every commit through. **A project's own
-`commit-msg` hook is never replaced:** `need_hooks` says so, and the project calls the kit's
-script from its own.
+Until the kit is installed, the wrapper lets the commit through and says on stderr that
+nothing was checked. `need_hooks` rewrites a wrapper an older kit wrote, `dev-kit`'s included,
+when its content differs. **A project's own `commit-msg` hook is never replaced:** `need_hooks`
+says so, and the project calls the kit's script from its own.
 
 ### Lint
 
-Each section brings an [oxlint](https://oxc.rs) config. A consuming project installs the
+Each stack brings an [oxlint](https://oxc.rs) config. A consuming project installs the
 linter, plus `oxlint-tsgolint` at the major version of its TypeScript, which runs the rules
 that need type information:
 
@@ -254,8 +259,8 @@ that need type information:
 npm install -D oxlint oxlint-tsgolint@7
 ```
 
-and writes `.oxlintrc.json` naming one of `common`, `backend` or `ui`, plus `testing` if it
-loads that section:
+and writes `.oxlintrc.json` extending one of the stacks `typescript`, `node` or `react`, plus
+`vitest` if it has a Vitest suite:
 
 ```json
 {
@@ -266,7 +271,7 @@ loads that section:
 }
 ```
 
-`backend` and `ui` already extend `common`, as their tsconfigs do. A workspace one level down
+`node` and `react` already extend `typescript`, as their tsconfigs do. A workspace one level down
 writes `../node_modules/…`: like the rule imports, these are filesystem paths, relative to the
 config file. Run `npx oxlint --deny-warnings` wherever the project runs its other checks; the
 kit does not wire it into `./run`.
@@ -279,21 +284,21 @@ on.
 
 These rules are turned off, or given an option, because they flagged code that was not a bug:
 
-| Rule | Section | Why |
-| ---- | ------- | --- |
-| `typescript/no-unsafe-type-assertion` | common | Flags every `as` cast |
-| `unicorn/no-array-sort`, `no-array-reverse` | common | A preference for `toSorted()` |
-| `unicorn/consistent-function-scoping` | common | Style |
-| `import/no-unassigned-import` | common | Flags side-effect imports such as a stylesheet |
-| `import/no-named-as-default-member` | common | Flags the normal use of a CommonJS default export |
-| `promise/always-return`, `eslint/no-shadow`, `no-underscore-dangle` | common | Style |
-| `oxc/no-async-endpoint-handlers` | backend | Written for Express; Fastify awaits an async handler |
-| `no-explicit-any` under `**/migrations/**` | backend | `Kysely<any>`, the backend rule's one accepted `any` |
-| `react/react-in-jsx-scope` | ui | Wrong under `jsx: react-jsx` |
-| `no-misused-promises`, `checksVoidReturn.attributes: false` | ui | An async handler in a JSX attribute is the React idiom |
-| `vitest/valid-expect`, `maxArgs: 2` | testing | Vitest's `expect` takes a message |
-| `vitest/no-conditional-expect` | testing | A dataset runner checks rows differently by design |
-| `vitest/require-mock-type-parameters` | testing | Style |
+| Rule | Stack | Why |
+| ---- | ----- | --- |
+| `typescript/no-unsafe-type-assertion` | typescript | Flags every `as` cast |
+| `unicorn/no-array-sort`, `no-array-reverse` | typescript | A preference for `toSorted()` |
+| `unicorn/consistent-function-scoping` | typescript | Style |
+| `import/no-unassigned-import` | typescript | Flags side-effect imports such as a stylesheet |
+| `import/no-named-as-default-member` | typescript | Flags the normal use of a CommonJS default export |
+| `promise/always-return`, `eslint/no-shadow`, `no-underscore-dangle` | typescript | Style |
+| `oxc/no-async-endpoint-handlers` | node | Written for Express; Fastify awaits an async handler |
+| `no-explicit-any` under `**/migrations/**` | node | `Kysely<any>`, the node rule's one accepted `any` |
+| `react/react-in-jsx-scope` | react | Wrong under `jsx: react-jsx` |
+| `no-misused-promises`, `checksVoidReturn.attributes: false` | react | An async handler in a JSX attribute is the React idiom |
+| `vitest/valid-expect`, `maxArgs: 2` | vitest | Vitest's `expect` takes a message |
+| `vitest/no-conditional-expect` | vitest | A dataset runner checks rows differently by design |
+| `vitest/require-mock-type-parameters` | vitest | Style |
 
 **Expect a few dozen findings on adoption.** Three consuming projects, linted on 2026-10-13,
 had 36, 49 and 78. Most were unnecessary type assertions, which `npx oxlint --fix` removes,
@@ -327,7 +332,8 @@ is the one place its source is restated: `with_github_token` cannot be called be
 installed. Without a token, a project that needs one fails here with npm's `401`. The line
 gives git nothing: a private kit installed over git needs git signed in first, as under Install.
 
-`need_node` reads `CHARTER_NODE_MIN` (default `24`) and `CHARTER_NODE_HINT`. `need_env` returns
+`need_node` reads `CHARTER_NODE_MIN` (default `24`) and `CHARTER_NODE_HINT`, the text it
+prints when Node is too old. `need_env` returns
 non-zero when it created `.env`, so a caller can print its own notes only on the first run.
 **Under `set -e` a bare `need_env` therefore ends the script on exactly that run** — call it as
 `need_env || note "…"`.
@@ -347,7 +353,7 @@ lacks for the repository, registering the official marketplace first on a machin
 Code has never run. With nothing missing it prints nothing. Without Claude Code — CI — it notes
 the skip and returns zero.
 
-`need_hooks` installs the commit-msg hook, above, when it is missing. Outside a git repository,
+`need_hooks` installs the commit-msg hook, above, when it is missing or an older kit's. Outside a git repository,
 or beside a project's own hook, it changes nothing and returns zero; with the hook in place it
 prints nothing.
 
@@ -407,9 +413,21 @@ consumer project that installs this package by relative path.
 Write the check first. It is the only test this repository has, and a module that ships without
 one is a promise nobody is keeping.
 
-A rule goes in the `rules/` of the section whose every project needs it, with its import in
-that section's `rules.md`. `./check 40` fails until both exist, and fails if the section's
-session load passes 225 lines.
+A rule every project needs goes in `core/rules/`, with its import in `core/rules.md`. Any other
+rule goes in a module's `rules/` and opens with the fixed `paths:` block — the form `sync`
+reads without a YAML parser:
+
+```markdown
+---
+paths:
+  - "src/**"
+---
+```
+
+A new module is a directory under `domains/` or `stacks/`, with a name no other module has.
+`./check 40` fails until each rule has its place, and holds the budgets: 60 lines a file, 150
+for `core`, and 225 for a workspace's worst case — `core` plus every rule of its modules, as if
+every glob matched.
 
 ## Releasing
 
@@ -424,10 +442,35 @@ for them. `./check 60` fails until the range matches `"version"`.
 
 Pick the number by what a consumer has to do. Reworded rules or a fixed function: patch. A new
 rule, module or `lib.sh` function: minor. A path a consumer writes that moves or disappears:
-major, with a migration section like the one below.
+major, with a migration section like the ones below.
 
 The GitHub release is titled `vX.Y.Z — <what changed>` and ends with an "Upgrading" section that
 says what a consumer has to change, or that nothing has to.
+
+## Migrating from 2.x
+
+The package was `dev-kit` until 3.0, and its four sections became modules. Do this by hand:
+
+1. Replace the dependency: `npm uninstall dev-kit`, then `npm install -D charter@^3`.
+2. Change each path by the table below, including the `source` line in `./run`. A `./run` still
+   pointing at `common/lib.sh` fails loudly, not silently.
+3. Delete the 2.x section imports from every `CLAUDE.md`.
+4. Run `npx charter init <modules> [--workspace <dir>]` for each workspace. It writes
+   `charter.json`, the hook and the `.gitignore` line, and rewrites the commit-msg wrapper.
+
+| 2.x | 3.0 |
+| --- | --- |
+| `dev-kit/common/tsconfig` | `charter/stacks/typescript/tsconfig` |
+| `dev-kit/backend/tsconfig` | `charter/stacks/node/tsconfig` |
+| `dev-kit/ui/tsconfig` | `charter/stacks/react/tsconfig` |
+| `dev-kit/common/prettier` | `charter/stacks/typescript/prettier` |
+| `node_modules/dev-kit/{common,backend,ui,testing}/oxlint.json` | `node_modules/charter/stacks/{typescript,node,react,vitest}/oxlint.json` |
+| `node_modules/dev-kit/common/lib.sh` | `node_modules/charter/core/lib.sh` |
+| `node_modules/dev-kit/common/ignore/…` | `node_modules/charter/core/ignore/…` |
+| `@node_modules/dev-kit/{common,backend,ui,testing}/rules.md` | `@node_modules/charter/core/rules.md` at the root; the rest through `init` |
+
+The `./run` variables are renamed too: `DEVKIT_NODE_MIN` is `CHARTER_NODE_MIN` and
+`DEVKIT_NODE_HINT` is `CHARTER_NODE_HINT`.
 
 ## Migrating from 1.x
 

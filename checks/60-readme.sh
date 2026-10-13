@@ -4,13 +4,13 @@ set -euo pipefail
 
 [ -f README.md ] || { echo "  ✗ README.md does not exist"; exit 1; }
 
-# The migration section names 1.x paths on purpose, so it is the one part not checked. It is
-# the README's last section: everything from its heading down is dropped.
-promised="$(sed '/^## Migrating from 1\.x/,$d' README.md)"
+# The migration sections name old paths on purpose, so they are the one part not checked. They
+# close the README: everything from the first of them down is dropped.
+promised="$(sed '/^## Migrating from /,$d' README.md)"
 
 # A 1.x path anywhere else is a dead line handed to whoever copies the example. The loops below
 # only see 2.0 shapes, so without this an old specifier would pass unexamined.
-stale="$(grep -nE '(dev-kit|charter)/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' <<< "$promised" || true)"
+stale="$(grep -nE '(dev-kit|charter)/((tsconfig|prettier|rules|sh|ignore)([^a-z]|$)|(common|backend|ui|testing)/)' <<< "$promised" || true)"
 [ -z "$stale" ] || { echo "  ✗ the README still shows 1.x paths:"; echo "$stale"; exit 1; }
 
 # The install line moves with every release. A range left behind still installs within its

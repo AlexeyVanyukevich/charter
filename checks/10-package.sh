@@ -20,7 +20,7 @@ expect_packed 'bin/charter.mjs'
 expect_packed 'bin/modules.mjs'
 expect_packed 'bin/sync.mjs'
 
-# Every file in a section ships. A file left out of `files` still arrives over git, which
+# Every file in a module ships. A file left out of `files` still arrives over git, which
 # installs the whole repository, and is missing only from the registry tarball — the one
 # difference between the two channels that nothing else would catch.
 while read -r file; do
@@ -41,7 +41,7 @@ stale2="$(grep -rnE '(dev-kit|charter)/(common|backend|ui|testing)/' core domain
 outside="$(grep -vE '^(bin|core|domains|stacks)/|^package\.json$|^README\.md$' \
   <<< "$packed" || true)"
 [ -z "$outside" ] || {
-  echo "  ✗ the package ships files outside the sections:"
+  echo "  ✗ the package ships files outside the modules:"
   echo "$outside"
   exit 1
 }
