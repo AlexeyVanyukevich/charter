@@ -6,7 +6,7 @@ set -euo pipefail
 cd tests/fixture
 npm install --silent --no-audit --no-fund
 
-kit='node_modules/dev-kit'
+kit='node_modules/charter'
 
 # The fixture imports every index, which proves each is reachable at the path the README
 # promises. It is a harness: a real project imports only the sections it needs.
@@ -85,12 +85,12 @@ holders="$( { grep -rlF "$fact" "$kit"/*/rules || true; } | wc -l | tr -d ' ')"
 # fixture. The fixture's `file:` install is a symlink out of the project, and Claude Code does
 # not follow a nested import whose real path lies outside the project — so the fixture would
 # fail where every registry or git consumer, who gets a real directory, succeeds.
-if [ -z "${DEVKIT_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1; then
+if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1; then
   consumer="$(mktemp -d)"
   trap 'rm -rf "$consumer"' EXIT
-  mkdir -p "$consumer/node_modules/dev-kit"
+  mkdir -p "$consumer/node_modules/charter"
   tarball="$(cd ../.. && npm pack --silent --pack-destination "$consumer")"
-  tar -xzf "$consumer/$tarball" -C "$consumer/node_modules/dev-kit" --strip-components 1
+  tar -xzf "$consumer/$tarball" -C "$consumer/node_modules/charter" --strip-components 1
   cp CLAUDE.md "$consumer/CLAUDE.md"
   git -C "$consumer" init -q
   answer="$(cd "$consumer" && claude -p 'Per the HTTP rule in your instructions, which error code answers a write whose Origin is not the app'"'"'s own? Answer with the code and nothing else.' 2>&1 || true)"
@@ -101,7 +101,7 @@ if [ -z "${DEVKIT_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1;
   }
   echo "  ✓ a real session read a nested rule back"
 else
-  echo "  · session check skipped (no claude CLI, or DEVKIT_SKIP_SESSION_CHECK set)"
+  echo "  · session check skipped (no claude CLI, or CHARTER_SKIP_SESSION_CHECK set)"
 fi
 
 echo "  ✓ 4 sections load through their own index; a backend session reads $backend_load lines,"

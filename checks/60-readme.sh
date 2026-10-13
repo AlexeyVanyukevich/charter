@@ -10,13 +10,13 @@ promised="$(sed '/^## Migrating from 1\.x/,$d' README.md)"
 
 # A 1.x path anywhere else is a dead line handed to whoever copies the example. The loops below
 # only see 2.0 shapes, so without this an old specifier would pass unexamined.
-stale="$(grep -nE 'dev-kit/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' <<< "$promised" || true)"
+stale="$(grep -nE '(dev-kit|charter)/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' <<< "$promised" || true)"
 [ -z "$stale" ] || { echo "  ✗ the README still shows 1.x paths:"; echo "$stale"; exit 1; }
 
 # The install line moves with every release. A range left behind still installs within its
 # major, so nothing else fails until a major release, when it installs the previous one.
 version="$(node -p "require('./package.json').version")"
-range="$(grep -o '"dev-kit": "\^[0-9][^"]*"' <<< "$promised" | sed 's/.*"\^//; s/"$//')"
+range="$(grep -o '"charter": "\^[0-9][^"]*"' <<< "$promised" | sed 's/.*"\^//; s/"$//')"
 [ -n "$range" ] || { echo "  ✗ the README has no ^X.Y.Z install range"; exit 1; }
 [ "$range" = "$version" ] ||
   { echo "  ✗ the README installs ^$range; package.json is at $version"; exit 1; }
@@ -24,17 +24,17 @@ range="$(grep -o '"dev-kit": "\^[0-9][^"]*"' <<< "$promised" | sed 's/.*"\^//; s
 checked=0
 
 # Filesystem paths — rule imports, the shell library, the ignore files. Each never touches npm's
-# resolver, so the only promise is that the file is there: strip node_modules/dev-kit/ and look.
+# resolver, so the only promise is that the file is there: strip node_modules/charter/ and look.
 while read -r path; do
-  rel="${path#node_modules/dev-kit/}"
+  rel="${path#node_modules/charter/}"
   [ -f "$rel" ] || { echo "  ✗ README promises $path; $rel does not exist"; exit 1; }
   checked=$((checked + 1))
-done < <(grep -o 'node_modules/dev-kit/[^ )`"]*' <<< "$promised" | sort -u)
+done < <(grep -o 'node_modules/charter/[^ )`"]*' <<< "$promised" | sort -u)
 
 # Specifiers that go through module resolution must be in the exports map.
-specifier='dev-kit/\(common\|backend\|ui\)/\(tsconfig\|prettier\)[^ )`"]*'
+specifier='charter/\(common\|backend\|ui\)/\(tsconfig\|prettier\)[^ )`"]*'
 while read -r spec; do
-  sub="./${spec#dev-kit/}"
+  sub="./${spec#charter/}"
   node -e "
     const map = require('./package.json').exports
     if (!map['$sub']) { console.error('  ✗ README promises $spec, absent from exports'); process.exit(1) }

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# dev-kit init turns on the plugins a project's sections need and imports their rules, merges
+# charter init turns on the plugins a project's sections need and imports their rules, merges
 # into what is already there, refuses what it cannot do cleanly, and reaches a consumer as
-# `dev-kit`.
+# `charter`.
 set -euo pipefail
 
-cli="$PWD/bin/dev-kit.mjs"
-[ -f "$cli" ] || { echo "  ✗ bin/dev-kit.mjs does not exist"; exit 1; }
+cli="$PWD/bin/charter.mjs"
+[ -f "$cli" ] || { echo "  ✗ bin/charter.mjs does not exist"; exit 1; }
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
@@ -26,7 +26,7 @@ export CLAUDE_LOG="$tmp/claude.log"
 export PATH="$tmp/bin:$PATH"
 
 # A new project directory with the kit installed at its root, as init expects.
-project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/dev-kit"; echo "$tmp/$1"; }
+project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/charter"; echo "$tmp/$1"; }
 fail() { echo "  ✗ $*"; exit 1; }
 
 # ── a first run ───────────────────────────────────────────────────────────────
@@ -44,8 +44,8 @@ expected='{
 [ "$(cat "$p/.claude/settings.json")" = "$expected" ] ||
   { echo "  ✗ settings.json is not what common + ui enable:"; cat "$p/.claude/settings.json"; exit 1; }
 
-expected='@node_modules/dev-kit/common/rules.md
-@node_modules/dev-kit/ui/rules.md'
+expected='@node_modules/charter/common/rules.md
+@node_modules/charter/ui/rules.md'
 [ "$(cat "$p/CLAUDE.md")" = "$expected" ] ||
   { echo "  ✗ CLAUDE.md is not the two imports:"; cat "$p/CLAUDE.md"; exit 1; }
 
@@ -87,7 +87,7 @@ node -e '
 # An existing CLAUDE.md with no final newline gets its imports on their own lines.
 printf '# Project' > "$p/CLAUDE.md"
 ( cd "$p" && node "$cli" init testing ) >/dev/null || fail "init into an existing CLAUDE.md failed"
-[ "$(cat "$p/CLAUDE.md")" = $'# Project\n\n@node_modules/dev-kit/testing/rules.md' ] ||
+[ "$(cat "$p/CLAUDE.md")" = $'# Project\n\n@node_modules/charter/testing/rules.md' ] ||
   { echo "  ✗ imports were not appended after one blank line:"; cat "$p/CLAUDE.md"; exit 1; }
 
 # A section named twice is written once.
@@ -101,9 +101,9 @@ p="$(project split)"
 mkdir -p "$p/server" "$p/apps/web"
 ( cd "$p" && node "$cli" init backend --workspace server ) >/dev/null || fail "init --workspace server failed"
 ( cd "$p" && node "$cli" init ui --workspace apps/web ) >/dev/null || fail "init --workspace apps/web failed"
-[ "$(cat "$p/server/CLAUDE.md")" = '@../node_modules/dev-kit/backend/rules.md' ] ||
+[ "$(cat "$p/server/CLAUDE.md")" = '@../node_modules/charter/backend/rules.md' ] ||
   fail "a workspace one level down does not import through ../"
-[ "$(cat "$p/apps/web/CLAUDE.md")" = '@../../node_modules/dev-kit/ui/rules.md' ] ||
+[ "$(cat "$p/apps/web/CLAUDE.md")" = '@../../node_modules/charter/ui/rules.md' ] ||
   fail "a workspace two levels down does not import through ../../"
 grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
   fail "a workspace's plugins did not land in the root settings.json"
@@ -138,9 +138,9 @@ refuses() {
   [ "$(cd "$p" && find . | sort)" = "$before" ] || fail "init wrote files while refusing $name"
 }
 
-refuses 'no command' 'Usage: dev-kit init'
-refuses 'another command' 'Usage: dev-kit init' build common
-refuses 'no sections' 'Usage: dev-kit init' init
+refuses 'no command' 'Usage: charter init'
+refuses 'another command' 'Usage: charter init' build common
+refuses 'no sections' 'Usage: charter init' init
 refuses 'an unknown section' 'backend, common, testing, ui' init frontend
 refuses 'backend with ui' '--workspace' init backend ui
 refuses 'a missing workspace' 'not a directory' init ui --workspace nope
@@ -162,8 +162,8 @@ grep -q 'repository root' <<< "$err" || fail "refusing a subdirectory, init did 
 # ── reachable from a consumer ─────────────────────────────────────────────────
 
 ( cd tests/fixture && npm install --silent --no-audit --no-fund )
-[ -x tests/fixture/node_modules/.bin/dev-kit ] || fail "a consumer gets no dev-kit executable"
-err="$(tests/fixture/node_modules/.bin/dev-kit 2>&1 >/dev/null)" && fail "dev-kit with no arguments succeeded"
-grep -q 'Usage: dev-kit init' <<< "$err" || fail "a consumer's dev-kit does not print its usage"
+[ -x tests/fixture/node_modules/.bin/charter ] || fail "a consumer gets no charter executable"
+err="$(tests/fixture/node_modules/.bin/charter 2>&1 >/dev/null)" && fail "charter with no arguments succeeded"
+grep -q 'Usage: charter init' <<< "$err" || fail "a consumer's charter does not print its usage"
 
 echo "  ✓ init enables plugins and imports rules, merges without overwriting, places workspace imports, refuses cleanly, and reaches a consumer"

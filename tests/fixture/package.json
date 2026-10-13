@@ -1,11 +1,11 @@
 {
-  "name": "dev-kit-fixture",
+  "name": "charter-fixture",
   "version": "0.0.0",
   "private": true,
   "description": "Not shipped. Proves the kit's contract by consuming it.",
-  "prettier": "dev-kit/common/prettier",
+  "prettier": "charter/common/prettier",
   "dependencies": {
-    "dev-kit": "file:../.."
+    "charter": "file:../.."
   },
   "devDependencies": {
     "typescript": "^7.0.2",

@@ -16,7 +16,7 @@ expect_packed() {
 }
 
 expect_packed 'package.json'
-expect_packed 'bin/dev-kit.mjs'
+expect_packed 'bin/charter.mjs'
 
 # Every file in a section ships. A file left out of `files` still arrives over git, which
 # installs the whole repository, and is missing only from the registry tarball — the one
@@ -26,7 +26,7 @@ while read -r file; do
 done < <(find common backend ui testing -type f 2>/dev/null | sort)
 
 # A shipped file that still names a 1.x path sends a consumer somewhere that no longer exists.
-stale="$(grep -rnE 'dev-kit/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' \
+stale="$(grep -rnE '(dev-kit|charter)/(tsconfig|prettier|rules|sh|ignore)([^a-z]|$)' \
   common backend ui testing 2>/dev/null || true)"
 [ -z "$stale" ] || { echo "  ✗ shipped files still name 1.x paths:"; echo "$stale"; exit 1; }
 
@@ -44,12 +44,12 @@ outside="$(grep -vE '^(bin|common|backend|ui|testing)/|^package\.json$|^README\.
 # rides on, so it is checked once here rather than in each of them.
 ( cd "$fixture" && npm install --silent --no-audit --no-fund )
 resolved="$( cd "$fixture" && node -e '
-  console.log(require.resolve("dev-kit/package.json"))
+  console.log(require.resolve("charter/package.json"))
 ')"
 [ -f "$resolved" ] || { echo "  ✗ the package does not resolve from the fixture"; exit 1; }
 
 name="$(node -p "require('$resolved').name")"
-[ "$name" = "dev-kit" ] || { echo "  ✗ resolved the wrong package: $name"; exit 1; }
+[ "$name" = "charter" ] || { echo "  ✗ resolved the wrong package: $name"; exit 1; }
 
 # The kit exists so consumers stop inheriting things. It may never bring a tree with it.
 for field in dependencies peerDependencies; do

@@ -1,12 +1,12 @@
 {
-  "name": "dev-kit",
+  "name": "charter",
   "version": "2.4.0",
   "description": "Shared conventions and tooling configuration",
   "license": "UNLICENSED",
   "private": false,
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/AlexeyVanyukevich/dev-kit.git"
+    "url": "git+https://github.com/AlexeyVanyukevich/charter.git"
   },
   "engines": {
     "node": ">=24.0.0"
@@ -19,7 +19,7 @@
     "testing"
   ],
   "bin": {
-    "dev-kit": "bin/dev-kit.mjs"
+    "charter": "bin/charter.mjs"
   },
   "exports": {
     "./package.json": "./package.json",

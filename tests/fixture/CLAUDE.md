@@ -1,9 +1,9 @@
-# dev-kit fixture
+# charter fixture
 
 Imports every section, so the check proves each index is reachable at the path the README
 promises. A real project imports only the sections it needs.
 
-@node_modules/dev-kit/common/rules.md
-@node_modules/dev-kit/backend/rules.md
-@node_modules/dev-kit/ui/rules.md
-@node_modules/dev-kit/testing/rules.md
+@node_modules/charter/common/rules.md
+@node_modules/charter/backend/rules.md
+@node_modules/charter/ui/rules.md
+@node_modules/charter/testing/rules.md
