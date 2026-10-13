@@ -152,26 +152,35 @@ need_plugins() {
 
 # The commit rule is enforced by the kit's commit-msg hook, and hooks are not cloned, so each
 # clone installs it. The hooks directory gets a wrapper rather than a copy or a symlink: it
-# follows the kit through upgrades, needs no executable bit from the tarball, and lets a commit
-# through while the kit is not installed yet. A project's own commit-msg hook is never replaced.
+# follows the kit through upgrades and needs no executable bit from the tarball. Until the kit
+# is installed it lets a commit through and says nothing was checked. A wrapper an older kit
+# wrote is rewritten; a project's own commit-msg hook is never replaced.
 need_hooks() {
   git rev-parse --is-inside-work-tree >/dev/null 2>&1 || return 0
-  local hooks
+  local hooks wrapper
   hooks="$(git rev-parse --git-path hooks)"
-  if [ -e "$hooks/commit-msg" ] || [ -L "$hooks/commit-msg" ]; then
-    grep -qx '# dev-kit commit-msg' "$hooks/commit-msg" 2>/dev/null && return 0
-    note "$hooks/commit-msg is this project's own, so dev-kit's is not installed."
-    note "To enforce the commit rule, call node_modules/dev-kit/common/hooks/commit-msg \"\$1\" from it."
-    return 0
-  fi
-  mkdir -p "$hooks"
-  cat > "$hooks/commit-msg" <<'HOOK'
+  # Read with `read`, not `$(cat <<…)`: bash 3.2 misparses the quotes in a heredoc inside a
+  # command substitution.
+  IFS= read -r -d '' wrapper <<'HOOK' || true
 #!/bin/sh
 # dev-kit commit-msg
 f=node_modules/dev-kit/common/hooks/commit-msg
-[ -f "$f" ] || exit 0
+if [ ! -f "$f" ]; then
+  echo "dev-kit: $f is missing, so this message was not checked. Run npm install." >&2
+  exit 0
+fi
 exec bash "$f" "$@"
 HOOK
+  if [ -e "$hooks/commit-msg" ] || [ -L "$hooks/commit-msg" ]; then
+    if ! grep -qx '# dev-kit commit-msg' "$hooks/commit-msg" 2>/dev/null; then
+      note "$hooks/commit-msg is this project's own, so dev-kit's is not installed."
+      note "To enforce the commit rule, call node_modules/dev-kit/common/hooks/commit-msg \"\$1\" from it."
+      return 0
+    fi
+    [ "$(cat "$hooks/commit-msg")" = "${wrapper%$'\n'}" ] && return 0
+  fi
+  mkdir -p "$hooks"
+  printf '%s' "$wrapper" > "$hooks/commit-msg"
   chmod +x "$hooks/commit-msg"
   ok "commit-msg hook"
 }
