@@ -1,5 +1,5 @@
 {
-  "extends": "dev-kit/backend/tsconfig",
+  "extends": "charter/backend/tsconfig",
   "compilerOptions": { "noEmit": true },
   "include": ["src/violations.ts"]
 }

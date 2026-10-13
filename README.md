@@ -1,10 +1,10 @@
-# dev-kit
+# charter
 
 Shared conventions and tooling configuration for the projects on this machine, in four
 sections — `common`, `backend`, `ui`, `testing`. A project loads the sections it needs, and
 nothing from the others comes with them.
 
-This is never published to the public npm registry. A package called `dev-kit` on the public
+This is never published to the public npm registry. A package called `charter` on the public
 registry is an unrelated project and is not this one.
 
 ## Starting a project
@@ -14,14 +14,14 @@ describing the project and `<kit source>` naming where the kit comes from — th
 and its URL, or the git repository and its newest tag:
 
 ```text
-Set this project up with dev-kit. It is a <backend | ui | backend and ui in workspaces>
+Set this project up with charter. It is a <backend | ui | backend and ui in workspaces>
 project<, with tests>.
 
-1. Create package.json if there is none. Install dev-kit as a devDependency from
+1. Create package.json if there is none. Install charter as a devDependency from
    <kit source>. If you cannot reach it, stop and ask me; do not install a package named
-   dev-kit from the public registry.
-2. Read node_modules/dev-kit/README.md and follow it for this project's sections:
-   `npx dev-kit init`, the tsconfig, the Prettier key, the ignore files, and a ./run frame
+   charter from the public registry.
+2. Read node_modules/charter/README.md and follow it for this project's sections:
+   `npx charter init`, the tsconfig, the Prettier key, the ignore files, and a ./run frame
    that calls need_node, need_deps and need_plugins.
 3. Run ./run, then show me every file you created or changed.
 ```
@@ -34,7 +34,7 @@ it follows are always the installed release's.
 From the private registry — the normal way:
 
 ```json
-"devDependencies": { "dev-kit": "^2.4.0" }
+"devDependencies": { "charter": "^2.4.0" }
 ```
 
 with the registry in the consuming project's `.npmrc`:
@@ -50,7 +50,7 @@ one upstream is built for.
 Over git — the fallback, for a machine that cannot reach the registry:
 
 ```json
-"devDependencies": { "dev-kit": "github:<owner>/dev-kit#vX.Y.Z" }
+"devDependencies": { "charter": "github:<owner>/charter#vX.Y.Z" }
 ```
 
 `<owner>` is the account that holds the repository, and `vX.Y.Z` the newest release tag. No
@@ -78,10 +78,10 @@ to its contents, kept as a secret — and gives it to git, not npm:
     persist-credentials: false
 - run: gh auth setup-git
   env:
-    GH_TOKEN: ${{ secrets.DEV_KIT_TOKEN }}
+    GH_TOKEN: ${{ secrets.CHARTER_TOKEN }}
 - run: npm ci
   env:
-    GH_TOKEN: ${{ secrets.DEV_KIT_TOKEN }}
+    GH_TOKEN: ${{ secrets.CHARTER_TOKEN }}
 ```
 
 `GH_TOKEN` is the GitHub CLI's own variable and wins over `GITHUB_TOKEN`, so git gets the
@@ -115,7 +115,7 @@ kit to the root `node_modules`. A workspace one level down therefore imports one
 written as `@node_modules/…` it loads nothing, and says nothing:
 
 ```markdown
-@../node_modules/dev-kit/backend/rules.md
+@../node_modules/charter/backend/rules.md
 ```
 
 Start sessions at the repository root. A session started inside a workspace treats the root's
@@ -130,7 +130,7 @@ Once the kit is installed, one command turns on the Claude Code plugins a projec
 need and imports their rules:
 
 ```bash
-npx dev-kit init common testing
+npx charter init common testing
 ```
 
 | Section | Turns on |
@@ -150,9 +150,9 @@ each workspace's `CLAUDE.md`, climbing back to the root's `node_modules`; the pl
 land in the root's settings, because Claude Code enables a plugin per repository:
 
 ```bash
-npx dev-kit init common testing
-npx dev-kit init backend --workspace server
-npx dev-kit init ui --workspace web
+npx charter init common testing
+npx charter init backend --workspace server
+npx charter init ui --workspace web
 ```
 
 Running it again adds only what is missing. A plugin set to `false` stays off. `backend` and
@@ -168,13 +168,13 @@ commit-msg hook below.
 ### TypeScript
 
 ```json
-{ "extends": "dev-kit/backend/tsconfig" }
+{ "extends": "charter/backend/tsconfig" }
 ```
 
-`dev-kit/common/tsconfig` carries the strictness: `strict`, `noUncheckedIndexedAccess`,
-`exactOptionalPropertyTypes`, `target: ES2023`. `dev-kit/backend/tsconfig` adds NodeNext
-resolution and Node types; `dev-kit/ui/tsconfig` adds the DOM lib, bundler resolution and
-`jsx: react-jsx`. A workspace that is neither extends `dev-kit/common/tsconfig` directly.
+`charter/common/tsconfig` carries the strictness: `strict`, `noUncheckedIndexedAccess`,
+`exactOptionalPropertyTypes`, `target: ES2023`. `charter/backend/tsconfig` adds NodeNext
+resolution and Node types; `charter/ui/tsconfig` adds the DOM lib, bundler resolution and
+`jsx: react-jsx`. A workspace that is neither extends `charter/common/tsconfig` directly.
 
 None of the three sets `outDir`, `rootDir` or `include`. Those describe one project's directory
 layout, and a shared base that guesses them is a base every project has to override.
@@ -184,7 +184,7 @@ layout, and a shared base that guesses them is a base every project has to overr
 In the consuming project's `package.json`:
 
 ```json
-{ "prettier": "dev-kit/common/prettier" }
+{ "prettier": "charter/common/prettier" }
 ```
 
 `semi: false`, `singleQuote: true`, `printWidth: 100`.
@@ -195,10 +195,10 @@ One line per section in the consuming project's `CLAUDE.md`, and only the sectio
 project needs:
 
 ```markdown
-@node_modules/dev-kit/common/rules.md
-@node_modules/dev-kit/backend/rules.md
-@node_modules/dev-kit/ui/rules.md
-@node_modules/dev-kit/testing/rules.md
+@node_modules/charter/common/rules.md
+@node_modules/charter/backend/rules.md
+@node_modules/charter/ui/rules.md
+@node_modules/charter/testing/rules.md
 ```
 
 | Section | Rule | Covers |
@@ -243,7 +243,7 @@ with a period, and the 72-character limit. A message beginning `fixup! `, `squas
 `amend! ` passes, because `git rebase --autosquash` folds it away before it reaches `main`.
 
 The hooks directory holds a five-line wrapper that calls
-`node_modules/dev-kit/common/hooks/commit-msg`, so an upgrade of the kit upgrades the hook.
+`node_modules/charter/common/hooks/commit-msg`, so an upgrade of the kit upgrades the hook.
 Until the kit is installed, the wrapper lets every commit through. **A project's own
 `commit-msg` hook is never replaced:** `need_hooks` says so, and the project calls the kit's
 script from its own.
@@ -264,8 +264,8 @@ loads that section:
 ```json
 {
   "extends": [
-    "./node_modules/dev-kit/backend/oxlint.json",
-    "./node_modules/dev-kit/testing/oxlint.json"
+    "./node_modules/charter/backend/oxlint.json",
+    "./node_modules/charter/testing/oxlint.json"
   ]
 }
 ```
@@ -309,7 +309,7 @@ over the kit's.
 ### The `./run` skeleton
 
 ```bash
-source node_modules/dev-kit/common/lib.sh
+source node_modules/charter/common/lib.sh
 ```
 
 Defines `step`, `ok`, `note`, `die`, `load_env_file`, `need_docker`, `need_node`, `need_deps`,
@@ -321,9 +321,9 @@ kit is there.** Keep a short bootstrap *above* the `source` line, and test for t
 than the directory: a checkout installed before it took the kit has `node_modules` without it.
 
 ```bash
-[ -f node_modules/dev-kit/common/lib.sh ] ||
+[ -f node_modules/charter/common/lib.sh ] ||
   GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token 2>/dev/null || true)}" npm install
-source node_modules/dev-kit/common/lib.sh
+source node_modules/charter/common/lib.sh
 ```
 
 The token in that line matters only to a project with packages on GitHub Packages, below, and
@@ -331,7 +331,7 @@ is the one place its source is restated: `with_github_token` cannot be called be
 installed. Without a token, a project that needs one fails here with npm's `401`. The line
 gives git nothing: a private kit installed over git needs git signed in first, as under Install.
 
-`need_node` reads `DEVKIT_NODE_MIN` (default `24`) and `DEVKIT_NODE_HINT`. `need_env` returns
+`need_node` reads `CHARTER_NODE_MIN` (default `24`) and `CHARTER_NODE_HINT`. `need_env` returns
 non-zero when it created `.env`, so a caller can print its own notes only on the first run.
 **Under `set -e` a bare `need_env` therefore ends the script on exactly that run** — call it as
 `need_env || note "…"`.
@@ -387,8 +387,8 @@ and, on the package, access granted to the consuming repository under "Manage Ac
 ### Ignore files
 
 ```bash
-cp node_modules/dev-kit/common/ignore/gitignore .gitignore
-cp node_modules/dev-kit/common/ignore/prettierignore .prettierignore
+cp node_modules/charter/common/ignore/gitignore .gitignore
+cp node_modules/charter/common/ignore/prettierignore .prettierignore
 ```
 
 These are **copied, not referenced** — neither format has an import or extends mechanism. They

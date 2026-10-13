@@ -1,5 +1,5 @@
 {
-  "extends": "dev-kit/common/tsconfig",
+  "extends": "charter/common/tsconfig",
   "compilerOptions": { "noEmit": true },
   "include": ["src/clean.ts"]
 }

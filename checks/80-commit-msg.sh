@@ -81,7 +81,7 @@ git init -q "$repo"
 ( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed in a fresh repository"
 installed="$repo/.git/hooks/commit-msg"
 [ -x "$installed" ] || fail "need_hooks did not write an executable .git/hooks/commit-msg"
-grep -qx '# dev-kit commit-msg' "$installed" || fail "the installed hook carries no dev-kit marker"
+grep -qx '# charter commit-msg' "$installed" || fail "the installed hook carries no charter marker"
 
 # A second run is silent and changes nothing.
 cp "$installed" "$tmp/hook.before"
@@ -105,13 +105,15 @@ git -C "$repo" config core.hooksPath .githooks
 ( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed with core.hooksPath"
 [ -f "$repo/.githooks/commit-msg" ] || fail "need_hooks ignored core.hooksPath"
 
-# A wrapper an older kit wrote is brought up to date, not taken for the project's own hook.
+# A wrapper an older kit wrote — dev-kit's included — is brought up to date, not taken for the
+# project's own hook.
 repo="$tmp/outdated"
 git init -q "$repo"
 printf '#!/bin/sh\n# dev-kit commit-msg\nf=node_modules/dev-kit/common/hooks/commit-msg\n[ -f "$f" ] || exit 0\nexec bash "$f" "$@"\n' \
   > "$repo/.git/hooks/commit-msg"
 ( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed beside an outdated wrapper"
-grep -q 'was not checked' "$repo/.git/hooks/commit-msg" || fail "need_hooks left an outdated wrapper as it was"
+grep -qx '# charter commit-msg' "$repo/.git/hooks/commit-msg" ||
+  fail "need_hooks took a dev-kit wrapper for the project's own hook, or left it as it was"
 
 # Outside a repository there is nothing to install into, and ./run must not fail over that.
 mkdir -p "$tmp/plain"
@@ -123,13 +125,13 @@ mkdir -p "$tmp/plain"
 # A consumer holding the unpacked tarball, as a registry or git install gives it: proves the
 # wrapper reaches the script and that git refuses, not just that the script exits 1.
 consumer="$tmp/consumer"
-mkdir -p "$consumer/node_modules/dev-kit"
+mkdir -p "$consumer/node_modules/charter"
 tarball="$(npm pack --silent --pack-destination "$tmp")"
-tar -xzf "$tmp/$tarball" -C "$consumer/node_modules/dev-kit" --strip-components 1
+tar -xzf "$tmp/$tarball" -C "$consumer/node_modules/charter" --strip-components 1
 git init -q "$consumer"
 echo 'node_modules/' > "$consumer/.gitignore"
 git -C "$consumer" add .gitignore
-( cd "$consumer" && source node_modules/dev-kit/common/lib.sh && need_hooks ) >/dev/null ||
+( cd "$consumer" && source node_modules/charter/common/lib.sh && need_hooks ) >/dev/null ||
   fail "need_hooks failed in a consumer"
 git -C "$consumer" commit -q -m 'Fix: x' 2>/dev/null && fail "git accepted 'Fix: x' with the hook installed"
 git -C "$consumer" commit -q -m 'fix: x' 2>/dev/null || fail "git refused 'fix: x' with the hook installed"

@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const usage = 'Usage: dev-kit init <section…> [--workspace <dir>]'
+const usage = 'Usage: charter init <section…> [--workspace <dir>]'
 const settingsFile = join('.claude', 'settings.json')
 
 function fail(message, hint) {
@@ -42,10 +42,10 @@ function parse(argv) {
 function check({ sections, workspace }) {
   // Run anywhere else, the settings would land where no session reads them and the imports
   // would point at a node_modules that is not there. The root is where the kit is installed.
-  if (!existsSync(join('node_modules', 'dev-kit'))) {
+  if (!existsSync(join('node_modules', 'charter'))) {
     fail(
-      'This is not the repository root: there is no node_modules/dev-kit here.',
-      'Run dev-kit init at the repository root, where the kit is installed.',
+      'This is not the repository root: there is no node_modules/charter here.',
+      'Run charter init at the repository root, where the kit is installed.',
     )
   }
   const valid = readdirSync(kit)
@@ -58,13 +58,13 @@ function check({ sections, workspace }) {
   if (sections.includes('backend') && sections.includes('ui')) {
     fail(
       'backend and ui cannot load in the same directory.',
-      'Give each its own workspace: dev-kit init backend --workspace <dir>, and the same for ui.',
+      'Give each its own workspace: charter init backend --workspace <dir>, and the same for ui.',
     )
   }
   const dir = resolve(workspace)
   const fromRoot = relative(process.cwd(), dir)
   if (fromRoot === '..' || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) {
-    fail(`${workspace} is outside this repository.`, 'Run dev-kit init at the repository root.')
+    fail(`${workspace} is outside this repository.`, 'Run charter init at the repository root.')
   }
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     fail(`${workspace} is not a directory.`, 'Create the workspace first, then run this again.')
@@ -105,7 +105,7 @@ const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
 // The import climbs from the workspace back to the root, where node_modules is hoisted.
 const up = relative(dir, process.cwd()).split(sep).join('/')
 const imports = options.sections.map(
-  (section) => `@${up ? `${up}/` : ''}node_modules/dev-kit/${section}/rules.md`,
+  (section) => `@${up ? `${up}/` : ''}node_modules/charter/${section}/rules.md`,
 )
 const claudeFile = join(dir, 'CLAUDE.md')
 const claude = existsSync(claudeFile) ? readFileSync(claudeFile, 'utf8') : ''
@@ -138,5 +138,5 @@ for (const line of imports) {
 const lib = join(kit, 'common', 'lib.sh')
 const hooks = options.sections.includes('common') ? 'yes' : 'no'
 const script = 'source "$1" && need_plugins && if [ "$2" = yes ]; then need_hooks; fi'
-const run = spawnSync('bash', ['-c', script, 'dev-kit', lib, hooks], { stdio: 'inherit' })
+const run = spawnSync('bash', ['-c', script, 'charter', lib, hooks], { stdio: 'inherit' })
 process.exit(run.status ?? 1)

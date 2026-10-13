@@ -1,6 +1,6 @@
 # Sourced by a project's ./run, never executed:
 #
-#   source node_modules/dev-kit/common/lib.sh
+#   source node_modules/charter/common/lib.sh
 #
 # Sourcing is inert. No shell options are set, no directory is changed and nothing runs — the
 # caller owns `set -euo pipefail` and its own `cd`, and a library that took either would
@@ -58,8 +58,8 @@ need_docker() {
 # The floor is a variable because it is the one thing that differs between projects today, and
 # a project that needs a newer Node should say so rather than fork this function.
 need_node() {
-  local min="${DEVKIT_NODE_MIN:-24}"
-  local hint="${DEVKIT_NODE_HINT:-Install Node ${min} or newer.}"
+  local min="${CHARTER_NODE_MIN:-24}"
+  local hint="${CHARTER_NODE_HINT:-Install Node ${min} or newer.}"
   command -v node >/dev/null 2>&1 || die "Node is not installed." "$hint"
   local major
   major="$(node -p 'process.versions.node.split(".")[0]')"
@@ -163,18 +163,19 @@ need_hooks() {
   # command substitution.
   IFS= read -r -d '' wrapper <<'HOOK' || true
 #!/bin/sh
-# dev-kit commit-msg
-f=node_modules/dev-kit/common/hooks/commit-msg
+# charter commit-msg
+f=node_modules/charter/common/hooks/commit-msg
 if [ ! -f "$f" ]; then
-  echo "dev-kit: $f is missing, so this message was not checked. Run npm install." >&2
+  echo "charter: $f is missing, so this message was not checked. Run npm install." >&2
   exit 0
 fi
 exec bash "$f" "$@"
 HOOK
   if [ -e "$hooks/commit-msg" ] || [ -L "$hooks/commit-msg" ]; then
-    if ! grep -qx '# dev-kit commit-msg' "$hooks/commit-msg" 2>/dev/null; then
-      note "$hooks/commit-msg is this project's own, so dev-kit's is not installed."
-      note "To enforce the commit rule, call node_modules/dev-kit/common/hooks/commit-msg \"\$1\" from it."
+    # dev-kit is the kit's name before 3.0; a wrapper it wrote is ours to rewrite too.
+    if ! grep -qxE '# (charter|dev-kit) commit-msg' "$hooks/commit-msg" 2>/dev/null; then
+      note "$hooks/commit-msg is this project's own, so charter's is not installed."
+      note "To enforce the commit rule, call node_modules/charter/common/hooks/commit-msg \"\$1\" from it."
       return 0
     fi
     [ "$(cat "$hooks/commit-msg")" = "${wrapper%$'\n'}" ] && return 0

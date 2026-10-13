@@ -1,4 +1,4 @@
-# dev-kit
+# charter
 
 The kit follows its own `common` rules.
 

@@ -6,7 +6,7 @@ set -euo pipefail
 cd tests/fixture
 npm install --silent --no-audit --no-fund
 
-kit="$PWD/node_modules/dev-kit"
+kit="$PWD/node_modules/charter"
 oxlint="$PWD/node_modules/.bin/oxlint"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
