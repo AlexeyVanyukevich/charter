@@ -4,6 +4,7 @@
 
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -66,7 +67,14 @@ function parseRule(text, name) {
       'A rule outside core/ starts with ---, paths:, one   - "<pattern>" line per pattern, then ---.',
     )
   }
-  return { patterns, body: lines.slice(i + 1).join('\n') }
+  // The body is the original bytes after the closing line and its own terminator, unchanged.
+  let offset = 0
+  for (let k = 0; k <= i; k++) {
+    offset += lines[k].length
+    if (text.startsWith('\r\n', offset)) offset += 2
+    else if (text.startsWith('\n', offset)) offset += 1
+  }
+  return { patterns, body: text.slice(offset) }
 }
 
 export function plan(root, kit) {
@@ -74,6 +82,11 @@ export function plan(root, kit) {
   const modules = findModules(kit)
   const wanted = new Map()
   for (const [key, names] of Object.entries(manifest.workspaces)) {
+    // Absolute keys are refused before normalizing, which would turn "/" into the root.
+    const slashed = key.replaceAll('\\', '/')
+    if (slashed.startsWith('/') || /^[A-Za-z]:/.test(slashed)) {
+      throw new KitError(`Workspace "${key}" is outside the repository.`, 'Name it by its path from the root.')
+    }
     const workspace = normalizeWorkspace(key)
     if (workspace === rootName) {
       throw new KitError(`A workspace cannot be named ${rootName}.`, 'charter uses that name for the root.')
@@ -123,7 +136,8 @@ function prune(dir, root, wanted) {
   if (!existsSync(dir)) return
   for (const entry of readdirSync(dir)) {
     const path = join(dir, entry)
-    if (statSync(path).isDirectory()) {
+    // lstat: a symlink is removed as a link, never followed out of the mirror.
+    if (lstatSync(path).isDirectory()) {
       prune(path, root, wanted)
       if (readdirSync(path).length === 0) rmdirSync(path)
     } else if (!wanted.has(relative(root, path))) {
