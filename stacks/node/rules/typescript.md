@@ -1,3 +1,8 @@
+---
+paths:
+  - "**/*.{ts,mts,cts}"
+  - "**/tsconfig*.json"
+---
 # TypeScript on the backend
 
 **A backend workspace resolves with `NodeNext`, and carries a `.js` extension on every relative

@@ -1,3 +1,0 @@
-# TypeScript
-
-@rules/typescript.md

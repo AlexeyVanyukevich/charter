@@ -1,3 +1,7 @@
+---
+paths:
+  - "**/*.{ts,tsx}"
+---
 # TypeScript in the UI
 
 **A UI workspace resolves as a bundler does: relative imports carry no extension.**

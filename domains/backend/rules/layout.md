@@ -1,3 +1,7 @@
+---
+paths:
+  - "src/**"
+---
 # Code layout
 
 Modules are organised by entity, and each splits into four files. The directory takes the

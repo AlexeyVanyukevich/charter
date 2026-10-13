@@ -1,7 +1,12 @@
 #!/usr/bin/env node
-// Onboards a project: turns on the Claude Code plugins its sections need, in the root
-// .claude/settings.json, and imports their rules into CLAUDE.md. Adds what is missing and
-// changes nothing that is set. Spec: docs/superpowers/specs/2026-10-12-onboarding-design.md.
+// Onboards a project and keeps its path-scoped rules current:
+//
+//   charter init [<module…>] [--workspace <dir>]   records the modules in charter.json, imports
+//                                                  core, wires the sync hook, then syncs
+//   charter sync                                   mirrors the modules' rules into the project
+//
+// init adds what is missing and changes nothing that is set. Spec:
+// docs/superpowers/specs/2026-10-13-foundation-design.md.
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -9,11 +14,16 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { KitError, findModules } from './modules.mjs'
-import { sync } from './sync.mjs'
+import { manifestFile, normalizeWorkspace, readManifest, sync } from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const usage = 'Usage: charter init <module…> [--workspace <dir>]  |  charter sync'
+const usage = 'Usage: charter init [<module…>] [--workspace <dir>]  |  charter sync'
 const settingsFile = join('.claude', 'settings.json')
+const coreImport = '@node_modules/charter/core/rules.md'
+const ignored = '.claude/rules/charter/'
+const hookCommand = 'node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
+// Their TypeScript rules contradict each other on relative imports, so no workspace takes both.
+const exclusive = ['node', 'react']
 
 function fail(message, hint) {
   console.error(`✗ ${message}`)
@@ -23,46 +33,44 @@ function fail(message, hint) {
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
 
+function guard(action) {
+  try {
+    return action()
+  } catch (error) {
+    if (error instanceof KitError) fail(error.message, error.hint)
+    throw error
+  }
+}
+
 function parse(argv) {
   let parsed
   try {
-    parsed = parseArgs({
-      args: argv,
-      allowPositionals: true,
-      options: { workspace: { type: 'string' } },
-    })
+    parsed = parseArgs({ args: argv, allowPositionals: true, options: { workspace: { type: 'string' } } })
   } catch (error) {
     fail(error.message, usage)
   }
-  const [command, ...sections] = parsed.positionals
+  const [command, ...names] = parsed.positionals
   if (command === 'sync') {
-    if (sections.length > 0 || parsed.values.workspace !== undefined) fail('sync takes no arguments.', usage)
+    if (names.length > 0 || parsed.values.workspace !== undefined) fail('sync takes no arguments.', usage)
     return { command }
   }
   if (command !== 'init') fail(command ? `Unknown command: ${command}.` : 'No command given.', usage)
-  if (sections.length === 0) fail('Name at least one module.', usage)
-  return { command, sections: [...new Set(sections)], workspace: parsed.values.workspace ?? '.' }
+  return { command, names: [...new Set(names)], workspace: parsed.values.workspace ?? '.' }
 }
 
-// Every refusal happens here, before anything is written.
-function check({ sections, workspace }) {
-  // Run anywhere else, the settings would land where no session reads them and the imports
-  // would point at a node_modules that is not there. The root is where the kit is installed.
+// Returns the workspace's key in charter.json. Refuses before anything is written.
+function check(names, workspace, modules) {
+  // Run anywhere else, the settings would land where no session reads them. The root is where
+  // the kit is installed.
   if (!existsSync(join('node_modules', 'charter'))) {
     fail(
       'This is not the repository root: there is no node_modules/charter here.',
       'Run charter init at the repository root, where the kit is installed.',
     )
   }
-  const unknown = sections.filter((name) => !modules.has(name))
+  const unknown = names.filter((name) => !modules.has(name))
   if (unknown.length > 0) {
     fail(`Unknown module: ${unknown.join(', ')}.`, `The modules are ${[...modules.keys()].join(', ')}.`)
-  }
-  if (sections.includes('node') && sections.includes('react')) {
-    fail(
-      'node and react cannot load in the same directory.',
-      'Give each its own workspace: charter init node --workspace <dir>, and the same for react.',
-    )
   }
   const dir = resolve(workspace)
   const fromRoot = relative(process.cwd(), dir)
@@ -72,7 +80,9 @@ function check({ sections, workspace }) {
   if (!existsSync(dir) || !statSync(dir).isDirectory()) {
     fail(`${workspace} is not a directory.`, 'Create the workspace first, then run this again.')
   }
-  return dir
+  const key = normalizeWorkspace(fromRoot.split(sep).join('/'))
+  if (key === '@root') fail('A workspace cannot be named @root.', 'charter uses that name for the root.')
+  return key
 }
 
 function readSettings() {
@@ -83,78 +93,101 @@ function readSettings() {
   } catch {
     fail(`${settingsFile} is not valid JSON.`, 'Fix it, then run this again.')
   }
-  if (!isObject(settings)) {
-    fail(`${settingsFile} does not hold a JSON object.`, 'Fix it, then run this again.')
-  }
+  if (!isObject(settings)) fail(`${settingsFile} does not hold a JSON object.`, 'Fix it, then run this again.')
   if (settings.enabledPlugins !== undefined && !isObject(settings.enabledPlugins)) {
     fail(`enabledPlugins in ${settingsFile} is not an object.`, 'Fix it, then run this again.')
+  }
+  if (settings.hooks !== undefined && !isObject(settings.hooks)) {
+    fail(`hooks in ${settingsFile} is not an object.`, 'Fix it, then run this again.')
+  }
+  if (settings.hooks?.SessionStart !== undefined && !Array.isArray(settings.hooks.SessionStart)) {
+    fail(`hooks.SessionStart in ${settingsFile} is not a list.`, 'Fix it, then run this again.')
   }
   return settings
 }
 
-function pluginsOf(section) {
-  const file = join(kit, modules.get(section), 'plugins.json')
+function pluginsOf(name, modules) {
+  const file = join(kit, modules.get(name), 'plugins.json')
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : []
 }
 
-const modules = findModules(kit)
+// Appends `line` after one blank line, unless a line already reads one of `same`.
+function appendLine(file, line, same = [line]) {
+  const text = existsSync(file) ? readFileSync(file, 'utf8') : ''
+  if (text.split(/\r?\n/).some((existing) => same.includes(existing.trim()))) return false
+  const head = text.trim() === '' ? '' : `${text}${text.endsWith('\n') ? '' : '\n'}\n`
+  writeFileSync(file, `${head}${line}\n`)
+  return true
+}
+
+function init({ names, workspace }) {
+  const modules = guard(() => findModules(kit))
+  const key = check(names, workspace, modules)
+  const settings = readSettings()
+  const manifest = existsSync(manifestFile) ? guard(() => readManifest(process.cwd())) : { workspaces: {} }
+  const recorded = Object.keys(manifest.workspaces).find((k) => normalizeWorkspace(k) === key) ?? key
+  const current = manifest.workspaces[recorded] ?? []
+  const merged = [...current, ...names.filter((name) => !current.includes(name))]
+  const clash = exclusive.filter((name) => merged.includes(name))
+  if (clash.length > 1) {
+    fail(
+      `${clash.join(' and ')} cannot share a workspace.`,
+      'Their TypeScript rules contradict each other. Give each its own: charter init <module…> --workspace <dir>.',
+    )
+  }
+
+  // Nothing has been written up to here.
+  if (!(recorded in manifest.workspaces) || merged.length > current.length) {
+    manifest.workspaces[recorded] = merged
+    writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
+    console.log(`✓ ${manifestFile}: ${recorded} — ${merged.length > 0 ? merged.join(', ') : 'core only'}`)
+  } else {
+    console.log(`  ${manifestFile} already has ${recorded} with these modules`)
+  }
+
+  const enabled = settings.enabledPlugins ?? {}
+  const plugins = [...new Set(merged.flatMap((name) => pluginsOf(name, modules)))]
+  const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
+  const sessionStart = settings.hooks?.SessionStart ?? []
+  const hooked = sessionStart.some(
+    (entry) => Array.isArray(entry?.hooks) && entry.hooks.some((hook) => hook?.command === hookCommand),
+  )
+  if (newPlugins.length > 0) {
+    settings.enabledPlugins = { ...enabled, ...Object.fromEntries(newPlugins.map((id) => [id, true])) }
+  }
+  if (!hooked) {
+    settings.hooks = {
+      ...settings.hooks,
+      SessionStart: [...sessionStart, { hooks: [{ type: 'command', command: hookCommand }] }],
+    }
+  }
+  if (newPlugins.length > 0 || !hooked) {
+    mkdirSync('.claude', { recursive: true })
+    writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`)
+  }
+  for (const id of plugins) console.log(newPlugins.includes(id) ? `✓ enabled ${id}` : `  ${id} already set`)
+  console.log(hooked ? '  the sync hook is already set' : `✓ ${settingsFile}: SessionStart runs charter sync`)
+
+  console.log(appendLine('CLAUDE.md', coreImport) ? `✓ CLAUDE.md: ${coreImport}` : `  CLAUDE.md already has ${coreImport}`)
+  const ignoredNow = appendLine('.gitignore', ignored, [ignored, ignored.slice(0, -1)])
+  console.log(ignoredNow ? `✓ .gitignore: ${ignored}` : `  .gitignore already has ${ignored}`)
+
+  guard(() => sync(process.cwd(), kit))
+  console.log('✓ synced the path-scoped rules')
+
+  // core carries the commit rule, and every project loads core, so every init installs the hook.
+  const lib = join(kit, 'core', 'lib.sh')
+  const run = spawnSync('bash', ['-c', 'source "$1" && need_plugins && need_hooks', 'charter', lib], {
+    stdio: 'inherit',
+  })
+  process.exit(run.status ?? 1)
+}
+
 const options = parse(process.argv.slice(2))
 if (options.command === 'sync') {
   // The hook runs with the project root in CLAUDE_PROJECT_DIR, whatever directory the session
   // started in; by hand, sync runs at the root.
-  try {
-    sync(process.env.CLAUDE_PROJECT_DIR || process.cwd(), kit)
-  } catch (error) {
-    if (error instanceof KitError) fail(error.message, error.hint)
-    throw error
-  }
+  guard(() => sync(process.env.CLAUDE_PROJECT_DIR || process.cwd(), kit))
   process.exit(0)
 }
-const dir = check(options)
-const settings = readSettings()
-
-const enabled = settings.enabledPlugins ?? {}
-const plugins = [...new Set(options.sections.flatMap(pluginsOf))]
-const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
-
-// The import climbs from the workspace back to the root, where node_modules is hoisted.
-const up = relative(dir, process.cwd()).split(sep).join('/')
-// core loads from the root's CLAUDE.md; each module's index from its workspace's.
-const indexOf = (name) => (name === 'core' ? 'core' : modules.get(name))
-const atRoot = dir === process.cwd()
-const imports = [...(atRoot ? ['core'] : []), ...options.sections]
-  .filter((name) => existsSync(join(kit, indexOf(name), 'rules.md')))
-  .map((name) => `@${up ? `${up}/` : ''}node_modules/charter/${indexOf(name)}/rules.md`)
-const claudeFile = join(dir, 'CLAUDE.md')
-const claude = existsSync(claudeFile) ? readFileSync(claudeFile, 'utf8') : ''
-const present = new Set(claude.split('\n').map((line) => line.trimEnd()))
-const newImports = imports.filter((line) => !present.has(line))
-
-if (newPlugins.length > 0) {
-  settings.enabledPlugins = {
-    ...enabled,
-    ...Object.fromEntries(newPlugins.map((id) => [id, true])),
-  }
-  mkdirSync('.claude', { recursive: true })
-  writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`)
-}
-if (newImports.length > 0) {
-  const block = `${newImports.join('\n')}\n`
-  const head = claude.trim() === '' ? '' : `${claude}${claude.endsWith('\n') ? '' : '\n'}\n`
-  writeFileSync(claudeFile, head + block)
-}
-
-const shown = relative(process.cwd(), claudeFile)
-for (const id of plugins) {
-  console.log(newPlugins.includes(id) ? `✓ enabled ${id}` : `  ${id} already set`)
-}
-for (const line of imports) {
-  console.log(newImports.includes(line) ? `✓ ${shown}: ${line}` : `  ${shown} already has ${line}`)
-}
-
-// core carries the commit rule, and every project loads core, so every init installs the hook.
-const lib = join(kit, 'core', 'lib.sh')
-const run = spawnSync('bash', ['-c', 'source "$1" && need_plugins && need_hooks', 'charter', lib], {
-  stdio: 'inherit',
-})
-process.exit(run.status ?? 1)
+init(options)

@@ -1,3 +1,0 @@
-# Node
-
-@rules/typescript.md
