@@ -1,0 +1,5 @@
+{
+  "extends": "dev-kit/common/tsconfig",
+  "compilerOptions": { "noEmit": true, "jsx": "preserve", "types": [] },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

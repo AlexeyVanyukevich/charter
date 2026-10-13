@@ -1,0 +1,8 @@
+{
+  "plugins": ["vitest"],
+  "rules": {
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
+    "vitest/no-conditional-expect": "off",
+    "vitest/require-mock-type-parameters": "off"
+  }
+}

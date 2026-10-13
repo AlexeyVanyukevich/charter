@@ -1,0 +1,82 @@
+#!/usr/bin/env bash
+# Each section's lint config fires the rules it promises, holds the exceptions it makes, and
+# merges with the others the way the README tells a project to combine them.
+set -euo pipefail
+
+cd tests/fixture
+npm install --silent --no-audit --no-fund
+
+kit="$PWD/node_modules/dev-kit"
+oxlint="$PWD/node_modules/.bin/oxlint"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+fail() { echo "  ✗ $*"; exit 1; }
+
+# A project's .oxlintrc.json, extending the named sections in the order given.
+config() {
+  local section list=''
+  for section in "$@"; do list+="${list:+, }\"$kit/$section/oxlint.json\""; done
+  echo "{ \"extends\": [$list] }" > "$tmp/oxlintrc.json"
+}
+
+# The rules that fired, as plugin(rule), sorted and space-separated; '-' for none.
+fired() {
+  local out
+  out="$(cd lint && "$oxlint" -c "$tmp/oxlintrc.json" --format unix "$@" 2>&1 || true)"
+  if grep -q 'Failed\|error:' <<< "$out" && ! grep -q '\[Error/' <<< "$out"; then
+    echo "oxlint did not run: $out" >&2
+    return 1
+  fi
+  local rules
+  rules="$(grep -oE '\[(Error|Warning)/[a-z_-]+\([a-z-]+\)\]' <<< "$out" |
+    sed -E 's/^\[[A-Za-z]+\/(.*)\]$/\1/' | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  echo "${rules:--}"
+}
+
+# One row per case: the sections extended, the files under tests/fixture/lint, and exactly the
+# rules expected to fire. Exactly, not at least: a rule the kit turned off that fires anyway is
+# as much a failure as a promised rule that does not.
+IFS= read -r -d '' cases <<'ROWS' || true
+common|any.ts|typescript(no-explicit-any)
+common|floating.ts|typescript(no-floating-promises)
+common|switch.ts|typescript(switch-exhaustiveness-check)
+common|misused.ts|typescript(no-misused-promises)
+common|onclick.tsx|typescript(no-misused-promises)
+common|cast.ts|-
+common|sort.ts|-
+common|migrations/0001.ts|typescript(no-explicit-any)
+backend|migrations/0001.ts|-
+backend|any.ts|typescript(no-explicit-any)
+ui|onclick.tsx|-
+ui|key.tsx|react(jsx-key)
+common testing|focused.test.ts|vitest(no-focused-tests)
+common testing|message.test.ts|-
+backend testing|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
+testing backend|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
+ROWS
+cases="${cases%$'\n'}"
+
+checked=0
+while IFS='|' read -r sections files expected; do
+  # shellcheck disable=SC2086
+  config $sections
+  # shellcheck disable=SC2086
+  got="$(fired $files)" || fail "oxlint could not lint $files under $sections"
+  [ "$got" = "$expected" ] ||
+    fail "under $sections, $files fired '$got'; expected '$expected'"
+  checked=$((checked + 1))
+done <<< "$cases"
+
+# The type-aware rules are real only if the config asks for them: without oxlint-tsgolint the
+# run must fail and name the package, not quietly lint without types.
+mkdir -p "$tmp/bare"
+cp lint/floating.ts "$tmp/bare/"
+echo '{ "include": ["*.ts"] }' > "$tmp/bare/tsconfig.json"
+config common
+out="$(cd "$tmp/bare" && env -u OXLINT_TSGOLINT_PATH "$oxlint" -c "$tmp/oxlintrc.json" floating.ts 2>&1)" &&
+  fail "oxlint passed without oxlint-tsgolint; the config does not turn on type-aware rules"
+grep -q 'oxlint-tsgolint' <<< "$out" ||
+  { echo "  ✗ without oxlint-tsgolint, oxlint failed without naming it:"; echo "$out"; exit 1; }
+
+echo "  ✓ $checked lint cases fire exactly what each section promises, and type-aware rules"
+echo "    need oxlint-tsgolint"

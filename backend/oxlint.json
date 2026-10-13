@@ -1,0 +1,13 @@
+{
+  "extends": ["../common/oxlint.json"],
+  "plugins": ["node"],
+  "rules": {
+    "oxc/no-async-endpoint-handlers": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/migrations/**"],
+      "rules": { "typescript/no-explicit-any": "off" }
+    }
+  ]
+}
