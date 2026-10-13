@@ -191,6 +191,15 @@ err="$( (cd "$p/server" && node "$cli" init node) 2>&1 >/dev/null )" && fail "in
 grep -q 'repository root' <<< "$err" || fail "refusing a subdirectory, init did not point to the root: got '$err'"
 [ "$(cd "$p" && find . | sort)" = "$before" ] || fail "init wrote files while refusing a subdirectory"
 
+# Without bash, init's files are written and synced, but need_plugins and need_hooks cannot run:
+# that is an error naming bash, not a silent exit 1.
+p="$(project nobash)"
+mkdir -p "$tmp/nodeonly"
+ln -sf "$(command -v node)" "$tmp/nodeonly/node"
+err="$( (cd "$p" && PATH="$tmp/nodeonly" node "$cli" init typescript) 2>&1 >/dev/null )" &&
+  fail "init succeeded without bash"
+grep -q 'bash' <<< "$err" || fail "init without bash did not name bash: got '$err'"
+
 # ── reachable from a consumer ─────────────────────────────────────────────────
 
 ( cd tests/fixture && npm install --silent --no-audit --no-fund )

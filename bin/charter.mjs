@@ -180,6 +180,12 @@ function init({ names, workspace }) {
   const run = spawnSync('bash', ['-c', 'source "$1" && need_plugins && need_hooks', 'charter', lib], {
     stdio: 'inherit',
   })
+  if (run.error) {
+    fail(
+      'bash could not be run',
+      "init's files are written and synced, but need_plugins and need_hooks did not run: run them from ./run, or install bash (Git Bash on Windows).",
+    )
+  }
   process.exit(run.status ?? 1)
 }
 
