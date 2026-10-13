@@ -47,17 +47,6 @@ turning it on.
 
   That is a minor or major release.
 
-## This repository does not follow its own documentation rule
-
-- Where: the repository root; `docs/superpowers/plans/`
-- Found: 2026-10-12, while auditing the rules
-- Priority: P6 — low; the rules address consuming projects, and this one loads none of them
-- Problem: there is no `CLAUDE.md` importing the kit's rules, no `docs/architecture.md`, and both
-  executed plans still sit in `docs/superpowers/plans/` rather than `archive/`. The README fills
-  the architecture role, as the specs' banners say.
-- Impact: none until the kit is meant to follow itself. Decide whether it is; if so, add the
-  imports and do what the rule asks.
-
 ## Two `superpowers` skills give opposite review ranges
 
 - Where: the `superpowers` skills `requesting-code-review`, line 28, and
