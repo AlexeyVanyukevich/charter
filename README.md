@@ -94,15 +94,15 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 
 | Section | For | Brings |
 | ------- | --- | ------ |
-| `common` | every project | six rules, the TypeScript base, Prettier, the `./run` skeleton, ignore files |
-| `backend` | Node services | four rules, the NodeNext tsconfig |
-| `ui` | bundled browser applications | one rule, the browser tsconfig, the `frontend-design` and `playwright` plugins |
-| `testing` | any project with a test suite | one rule |
+| `common` | every project | six rules, the commit-msg hook, a lint config, the TypeScript base, Prettier, the `./run` skeleton, ignore files |
+| `backend` | Node services | four rules, a lint config, the NodeNext tsconfig |
+| `ui` | bundled browser applications | one rule, a lint config, the browser tsconfig, the `frontend-design` and `playwright` plugins |
+| `testing` | any project with a test suite | one rule, a lint config |
 
 **No section loads another.** A backend project with tests writes `common`, `backend` and
 `testing` as three lines; nothing arrives that it did not name. A section's rules come as one
-line; its configuration — tsconfig, Prettier, `./run`, ignore files — is still taken one piece
-at a time, and a project that wants none of it writes none of it.
+line; its configuration — tsconfig, lint, Prettier, `./run`, ignore files — is still taken one
+piece at a time, and a project that wants none of it writes none of it.
 
 ### A repository with both a backend and a UI
 
@@ -160,6 +160,8 @@ Running it again adds only what is missing. A plugin set to `false` stays off. `
 
 **A committed plugin is turned on, not downloaded.** Each clone installs it once:
 `need_plugins`, in the `./run` frame below, does that, and `init` runs it before it finishes.
+When `common` is among the sections, `init` also runs `need_hooks`, which installs the
+commit-msg hook below.
 
 ## The modules
 
@@ -225,6 +227,85 @@ headings and none of the rules.
 These are **filesystem paths, not module specifiers**. They never touch npm's resolver, which
 is why they appear in no `exports` map and why adding a rule needs no `package.json` change.
 
+### Commit messages
+
+`need_hooks`, in the `./run` frame below, installs a `commit-msg` hook into the repository's
+hooks directory, wherever `core.hooksPath` points. `init common` installs it too. The hook
+refuses a message that breaks `commits.md` and says which part:
+
+```text
+✗ This commit message breaks the commit rule: the subject starts with a capital letter.
+```
+
+It enforces the shape (`type(scope)!: subject`, one of the rule's types, a lowercase scope),
+the single line with no body or trailer, a subject that does not start with a capital or end
+with a period, and the 72-character limit. A message beginning `fixup! `, `squash! ` or
+`amend! ` passes, because `git rebase --autosquash` folds it away before it reaches `main`.
+
+The hooks directory holds a five-line wrapper that calls
+`node_modules/dev-kit/common/hooks/commit-msg`, so an upgrade of the kit upgrades the hook.
+Until the kit is installed, the wrapper lets every commit through. **A project's own
+`commit-msg` hook is never replaced:** `need_hooks` says so, and the project calls the kit's
+script from its own.
+
+### Lint
+
+Each section brings an [oxlint](https://oxc.rs) config. A consuming project installs the
+linter, plus `oxlint-tsgolint` at the major version of its TypeScript, which runs the rules
+that need type information:
+
+```bash
+npm install -D oxlint oxlint-tsgolint@7
+```
+
+and writes `.oxlintrc.json` naming one of `common`, `backend` or `ui`, plus `testing` if it
+loads that section:
+
+```json
+{
+  "extends": [
+    "./node_modules/dev-kit/backend/oxlint.json",
+    "./node_modules/dev-kit/testing/oxlint.json"
+  ]
+}
+```
+
+`backend` and `ui` already extend `common`, as their tsconfigs do. A workspace one level down
+writes `../node_modules/…`: like the rule imports, these are filesystem paths, relative to the
+config file. Run `npx oxlint --deny-warnings` wherever the project runs its other checks; the
+kit does not wire it into `./run`.
+
+The configs turn on oxlint's `correctness` and `suspicious` categories, which cover code that
+is wrong or probably wrong. They also turn on `no-explicit-any` and two type-aware rules,
+`no-misused-promises` and `switch-exhaustiveness-check`. `correctness` already has
+`no-floating-promises` and `await-thenable`. Style is Prettier's job, and no style category is
+on.
+
+These rules are turned off, or given an option, because they flagged code that was not a bug:
+
+| Rule | Section | Why |
+| ---- | ------- | --- |
+| `typescript/no-unsafe-type-assertion` | common | Flags every `as` cast |
+| `unicorn/no-array-sort`, `no-array-reverse` | common | A preference for `toSorted()` |
+| `unicorn/consistent-function-scoping` | common | Style |
+| `import/no-unassigned-import` | common | Flags side-effect imports such as a stylesheet |
+| `import/no-named-as-default-member` | common | Flags the normal use of a CommonJS default export |
+| `promise/always-return`, `eslint/no-shadow`, `no-underscore-dangle` | common | Style |
+| `oxc/no-async-endpoint-handlers` | backend | Written for Express; Fastify awaits an async handler |
+| `no-explicit-any` under `**/migrations/**` | backend | `Kysely<any>`, the backend rule's one accepted `any` |
+| `react/react-in-jsx-scope` | ui | Wrong under `jsx: react-jsx` |
+| `no-misused-promises`, `checksVoidReturn.attributes: false` | ui | An async handler in a JSX attribute is the React idiom |
+| `vitest/valid-expect`, `maxArgs: 2` | testing | Vitest's `expect` takes a message |
+| `vitest/no-conditional-expect` | testing | A dataset runner checks rows differently by design |
+| `vitest/require-mock-type-parameters` | testing | Style |
+
+**Expect a few dozen findings on adoption.** Three consuming projects, linted on 2026-10-13,
+had 36, 49 and 78. Most were unnecessary type assertions, which `npx oxlint --fix` removes,
+and explicit `any`. The rest, as far as a sample showed, were real bugs: unhandled promises,
+a non-exhaustive switch.
+A rule a project wants differently goes in its own `.oxlintrc.json` under `rules`, which wins
+over the kit's.
+
 ### The `./run` skeleton
 
 ```bash
@@ -232,8 +313,8 @@ source node_modules/dev-kit/common/lib.sh
 ```
 
 Defines `step`, `ok`, `note`, `die`, `load_env_file`, `need_docker`, `need_node`, `need_deps`,
-`need_plugins`, `need_env` and `with_github_token`, plus the colour variables. Sourcing is
-inert: no shell options set, no directory changed, nothing run.
+`need_plugins`, `need_hooks`, `need_env` and `with_github_token`, plus the colour variables.
+Sourcing is inert: no shell options set, no directory changed, nothing run.
 
 **`./run` is what installs dependencies, so it cannot source out of `node_modules` before the
 kit is there.** Keep a short bootstrap *above* the `source` line, and test for the file rather
@@ -256,18 +337,23 @@ non-zero when it created `.env`, so a caller can print its own notes only on the
 `need_env || note "…"`.
 
 `need_plugins` reads the settings with `node`, so it comes after `need_node`; beside
-`need_deps` is the natural place:
+`need_deps` is the natural place, with `need_hooks` after it:
 
 ```bash
 need_node
 need_deps
 need_plugins
+need_hooks
 ```
 
 It installs, at project scope, each plugin `.claude/settings.json` turns on and this machine
 lacks for the repository, registering the official marketplace first on a machine where Claude
 Code has never run. With nothing missing it prints nothing. Without Claude Code — CI — it notes
 the skip and returns zero.
+
+`need_hooks` installs the commit-msg hook, above, when it is missing. Outside a git repository,
+or beside a project's own hook, it changes nothing and returns zero; with the hook in place it
+prints nothing.
 
 The scenarios stay in each project. Only the frame is shared.
 
