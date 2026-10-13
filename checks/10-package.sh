@@ -17,6 +17,8 @@ expect_packed() {
 
 expect_packed 'package.json'
 expect_packed 'bin/charter.mjs'
+expect_packed 'bin/modules.mjs'
+expect_packed 'bin/sync.mjs'
 
 # Every file in a section ships. A file left out of `files` still arrives over git, which
 # installs the whole repository, and is missing only from the registry tarball — the one

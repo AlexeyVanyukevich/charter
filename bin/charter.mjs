@@ -8,9 +8,11 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSy
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { KitError } from './modules.mjs'
+import { sync } from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const usage = 'Usage: charter init <section…> [--workspace <dir>]'
+const usage = 'Usage: charter init <section…> [--workspace <dir>]  |  charter sync'
 const settingsFile = join('.claude', 'settings.json')
 
 function fail(message, hint) {
@@ -33,9 +35,13 @@ function parse(argv) {
     fail(error.message, usage)
   }
   const [command, ...sections] = parsed.positionals
+  if (command === 'sync') {
+    if (sections.length > 0 || parsed.values.workspace !== undefined) fail('sync takes no arguments.', usage)
+    return { command }
+  }
   if (command !== 'init') fail(command ? `Unknown command: ${command}.` : 'No command given.', usage)
   if (sections.length === 0) fail('Name at least one section.', usage)
-  return { sections: [...new Set(sections)], workspace: parsed.values.workspace ?? '.' }
+  return { command, sections: [...new Set(sections)], workspace: parsed.values.workspace ?? '.' }
 }
 
 // Every refusal happens here, before anything is written.
@@ -95,6 +101,17 @@ function pluginsOf(section) {
 }
 
 const options = parse(process.argv.slice(2))
+if (options.command === 'sync') {
+  // The hook runs with the project root in CLAUDE_PROJECT_DIR, whatever directory the session
+  // started in; by hand, sync runs at the root.
+  try {
+    sync(process.env.CLAUDE_PROJECT_DIR || process.cwd(), kit)
+  } catch (error) {
+    if (error instanceof KitError) fail(error.message, error.hint)
+    throw error
+  }
+  process.exit(0)
+}
 const dir = check(options)
 const settings = readSettings()
 
