@@ -13,7 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, isAbsolute, join, posix, relative } from 'node:path'
+import { dirname, isAbsolute, join, posix, relative, sep } from 'node:path'
 import { KitError, findModules } from './modules.mjs'
 
 export const manifestFile = 'charter.json'
@@ -120,10 +120,21 @@ export function plan(root, kit) {
   return wanted
 }
 
+const isLink = (path) => lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() ?? false
+
 export function sync(root, kit) {
   const wanted = plan(root, kit)
+  // A symlink in the mirror, the mirror itself included, is removed as a link and never followed:
+  // writing or pruning through it would reach outside .claude/rules/charter/.
+  const mirror = join(root, rulesDir)
+  if (isLink(mirror)) rmSync(mirror)
   for (const [path, content] of wanted) {
     const file = join(root, path)
+    let at = mirror
+    for (const part of relative(mirror, file).split(sep)) {
+      at = join(at, part)
+      if (isLink(at)) rmSync(at)
+    }
     if (existsSync(file) && readFileSync(file, 'utf8') === content) continue
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, content)

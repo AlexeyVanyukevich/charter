@@ -78,17 +78,6 @@ turning it on.
   hook output.
 - Impact: every session start shows Node's stack-like error instead of "run npm install"
 
-## `sync` writes and prunes through symlinks
-
-- Where: `bin/charter.mjs`, `sync()`
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P4
-- Problem: a symlink at a wanted mirror path is written through, and a symlinked
-  `.claude/rules/charter` root is pruned through. Replace the root with a link to another
-  directory and run `charter sync`. The spec says `sync` touches nothing outside
-  `.claude/rules/charter/`.
-- Impact: files outside the mirror can be overwritten or deleted
-
 ## `init` writes before `sync` can refuse
 
 - Where: `bin/charter.mjs`, `init()`
