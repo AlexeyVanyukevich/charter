@@ -5,7 +5,7 @@
 set -euo pipefail
 
 tmp="$(mktemp -d)"
-trap 'chmod -R u+w "$tmp" 2>/dev/null; rm -rf "$tmp"' EXIT
+trap 'rm -rf "$tmp"' EXIT
 fail() { echo "  ✗ $*"; exit 1; }
 
 # A project holding a small kit of its own: the real bin/, and modules made up for this check,
@@ -55,10 +55,15 @@ cmp -s "$tmp/c-expected.md" "$out/apps/web/beta/c.md" || { echo "  ✗ a CRLF ru
 
 # ── a second run writes nothing ───────────────────────────────────────────────
 
-# Read-only files and directories: any write or delete fails the run.
-chmod -R a-w "$out"
-run >/dev/null || fail "a second run tried to write files that had not changed"
-chmod -R u+w "$out"
+# Everything in the mirror is dated 2000, so a write, a delete or a re-created file dates
+# something later. Making the mirror read-only instead would prove nothing as root, which
+# ignores the mode, as a container CI runs.
+find "$out" -exec touch -h -t 200001010000 {} +
+touch -t 200001020000 "$tmp/dated"
+listed="$(cd "$out" && find . | sort)"
+run >/dev/null || fail "a second run failed"
+[ "$(cd "$out" && find . | sort)" = "$listed" ] || fail "a second run changed which files the mirror holds"
+[ -z "$(find "$out" -newer "$tmp/dated")" ] || fail "a second run wrote files that had not changed"
 
 # ── what the kit or the manifest dropped is deleted ───────────────────────────
 
