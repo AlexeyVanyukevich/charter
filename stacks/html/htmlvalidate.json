@@ -1,4 +1,5 @@
 {
   "extends": ["html-validate:standard", "html-validate:a11y"],
-  "rules": { "input-missing-label": "error" }
+  "plugins": ["./plugin.mjs"],
+  "rules": { "input-missing-label": "error", "charter/clickable-control": "error" }
 }

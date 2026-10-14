@@ -23,17 +23,6 @@ turning it on.
 - Impact: a consumer that relied on `react` for the plugins loses them in a new workspace
   without being told
 
-## Nothing static catches a click handler on a non-interactive element in HTML
-
-- Where: `stacks/html/htmlvalidate.json`; `bin/scan.mjs`
-- Found: 2026-10-14, while adding the `html` stack
-- Priority: P4
-- Problem: `jsx-a11y` flags `<div onClick>` in JSX, but neither html-validate nor axe-core
-  flags `<div onclick="…">` in an `.html` file. Add one to `tests/fixture/html/fragment.html`
-  and run `./check 95`: both tools still report nothing for it.
-- Impact: in hand-written markup, the commonest generated-UI failure is found only by a
-  keyboard-only journey that happens to reach it
-
 ## Accessibility is not part of a UI slice's spec
 
 - Where: the requirement template, which the requirements release adds
