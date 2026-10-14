@@ -1,6 +1,6 @@
 # charter 3.2 — the `html` stack
 
-Status: **proposed**, 2026-10-14.
+Status: **built**, 2026-10-14.
 
 > **This is a decision record, not a description of the system.**
 >
