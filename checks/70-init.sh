@@ -35,13 +35,15 @@ old_hook='node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
 ws_hook() {
   printf 'f="$CLAUDE_PROJECT_DIR/%s/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi' "$1"
 }
-# The settings file holds the one SessionStart hook given, and nothing else of the kit's.
+# The settings file holds the one SessionStart hook given and, as JSON, the plugins given — none
+# when the third argument is left out.
 only_hook() {
   node -e '
     const s = require(process.argv[1])
     const commands = s.hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command))
-    if (JSON.stringify(commands) !== JSON.stringify([process.argv[2]]) || s.enabledPlugins !== undefined) throw new Error()
-  ' "$1" "$2" 2>/dev/null
+    if (JSON.stringify(commands) !== JSON.stringify([process.argv[2]])) throw new Error()
+    if (String(JSON.stringify(s.enabledPlugins)) !== process.argv[3]) throw new Error()
+  ' "$1" "$2" "${3:-undefined}" 2>/dev/null
 }
 
 # ── a first run ───────────────────────────────────────────────────────────────
@@ -207,8 +209,10 @@ grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
 # workspace gets the sync hook too, pointing at the root's kit. Nothing else is written there.
 only_hook "$p/server/.claude/settings.json" "$(ws_hook ..)" ||
   { echo "  ✗ server/.claude/settings.json does not hold exactly the workspace hook:"; cat "$p/server/.claude/settings.json"; exit 1; }
-only_hook "$p/apps/web/.claude/settings.json" "$(ws_hook ../..)" ||
-  { echo "  ✗ apps/web/.claude/settings.json does not hold the hook with ../..:"; cat "$p/apps/web/.claude/settings.json"; exit 1; }
+# A workspace session reads only the workspace's settings, so its modules' plugins are turned on
+# there too; the root's install serves it.
+only_hook "$p/apps/web/.claude/settings.json" "$(ws_hook ../..)" '{"playwright@claude-plugins-official":true}' ||
+  { echo "  ✗ apps/web/.claude/settings.json does not hold the hook with ../.. and its plugin:"; cat "$p/apps/web/.claude/settings.json"; exit 1; }
 for ws in server apps/web; do
   [ "$(cd "$p/$ws" && find . -type f | sort)" = './.claude/settings.json' ] ||
     fail "init wrote into $ws more than its .claude/settings.json"
@@ -232,6 +236,16 @@ node -e '
   if (s.hooks.PreToolUse?.[0]?.hooks?.[0]?.command !== "echo pre") throw new Error("another hook event was dropped")
 ' "$p/server/.claude/settings.json" "$(ws_hook ..)" 2>/dev/null ||
   { echo "  ✗ init changed or dropped something set in a workspace's settings:"; cat "$p/server/.claude/settings.json"; exit 1; }
+
+# A plugin a workspace turned off stays off there, as at the root.
+mkdir -p "$p/web/.claude"
+echo '{ "enabledPlugins": { "playwright@claude-plugins-official": false } }' > "$p/web/.claude/settings.json"
+( cd "$p" && node "$cli" init frontend playwright --workspace web ) >/dev/null || fail "init frontend playwright --workspace web failed"
+node -e '
+  const p = require(process.argv[1]).enabledPlugins
+  if (p["playwright@claude-plugins-official"] !== false || p["frontend-design@claude-plugins-official"] !== true) throw new Error()
+' "$p/web/.claude/settings.json" 2>/dev/null ||
+  { echo "  ✗ a workspace's plugins were not added beside its own opt-out:"; cat "$p/web/.claude/settings.json"; exit 1; }
 
 # Run as Claude Code runs it from the workspace: it syncs the root's mirror and prints core, which
 # the root CLAUDE.md's import does not reach there; before npm install it says to run it.

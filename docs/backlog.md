@@ -24,23 +24,10 @@ turning it on.
     turns nothing off; one onboarded after, with `react` alone, gets neither.
   - The `html` stack's config reports `charter/clickable-control`, so a project's markup check
     can start failing on the upgrade.
-  - Each workspace gets its own sync hook only when `init` is rerun for it, and the new
-    `<workspace>/.claude/settings.json` has to be committed.
+  - Each workspace gets its own sync hook and plugins only when `init` is rerun for it, and the
+    new `<workspace>/.claude/settings.json` has to be committed.
 - Impact: a consumer upgrades without knowing a check may fail, a plugin may be missing from a
   new workspace, or sessions started in a workspace still lack `core`
-
-## A session started in a workspace has none of the root's plugins
-
-- Where: `bin/charter.mjs`, `init()`; `core/lib.sh`, `need_plugins`
-- Found: 2026-10-15, while giving workspaces their own sync hook
-- Priority: P4
-- Problem: `init` turns plugins on in the root's `.claude/settings.json` only, and
-  `need_plugins` installs each at project scope for the root's path. A session started in
-  `server/` reads `server/.claude/settings.json` and is a project of its own, so the plugins of
-  its modules should be off there. Not yet observed: inferred from where the settings and the
-  installs live. Onboard a UI workspace, start `claude` in it, and run `/plugin` to see.
-- Impact: a UI session started in its workspace works without `frontend-design` and
-  `playwright`
 
 ## The sync hook has never run on Windows
 

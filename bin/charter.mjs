@@ -244,13 +244,20 @@ async function init({ names, workspace }) {
 
   if (wsSettingsFile) {
     const wsHook = addHook(wsSettings, hookCommand('/..'.repeat(key.split('/').length)))
-    if (wsHook === 'set') {
-      console.log(`  ${wsSettingsFile} already has the sync hook`)
-    } else {
+    // The workspace's plugins are turned on where its sessions read them, as at the root; the
+    // install need_plugins makes for the root serves them.
+    const wsEnabled = wsSettings.enabledPlugins ?? {}
+    const wsNewPlugins = plugins.filter((id) => !Object.hasOwn(wsEnabled, id))
+    if (wsNewPlugins.length > 0) {
+      wsSettings.enabledPlugins = { ...wsEnabled, ...Object.fromEntries(wsNewPlugins.map((id) => [id, true])) }
+    }
+    if (wsHook !== 'set' || wsNewPlugins.length > 0) {
       mkdirSync(dirname(wsSettingsFile), { recursive: true })
       await writeJson(wsSettingsFile, wsSettings)
-      console.log(`✓ ${wsSettingsFile}: SessionStart runs charter sync from the workspace`)
     }
+    for (const id of wsNewPlugins) console.log(`✓ ${wsSettingsFile}: enabled ${id}`)
+    if (wsHook === 'set') console.log(`  ${wsSettingsFile} already has the sync hook`)
+    else console.log(`✓ ${wsSettingsFile}: SessionStart runs charter sync from the workspace`)
   }
 
   console.log(appendLine('CLAUDE.md', coreImport) ? `✓ CLAUDE.md: ${coreImport}` : `  CLAUDE.md already has ${coreImport}`)
