@@ -25,11 +25,12 @@ const usage =
 const settingsFile = join('.claude', 'settings.json')
 const coreImport = '@node_modules/charter/core/rules.md'
 const ignored = '.claude/rules/charter/'
-// On a fresh clone the kit is not installed yet, and node alone would print its module-not-found
-// stack where the person needs to read "run npm install".
-const hookCommand =
-  'f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi'
-// What older kits wrote; init rewrites it where it stands.
+// The sync hook, for settings `up` below the root — '' at the root, '/..' in server. On a fresh
+// clone the kit is not installed yet, and node alone would print its module-not-found stack where
+// the person needs to read "run npm install".
+const hookCommand = (up = '') =>
+  `f="$CLAUDE_PROJECT_DIR${up}/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi`
+// What older kits wrote at the root; init rewrites it where it stands.
 const olderHookCommands = ['node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync']
 // Their TypeScript rules contradict each other on relative imports, so no workspace takes both.
 const exclusive = ['node', 'react']
@@ -98,25 +99,46 @@ function check(names, workspace, modules) {
   return key
 }
 
-function readSettings() {
-  if (!existsSync(settingsFile)) return {}
+function readSettings(file) {
+  if (!existsSync(file)) return {}
   let settings
   try {
-    settings = JSON.parse(readFileSync(settingsFile, 'utf8'))
+    settings = JSON.parse(readFileSync(file, 'utf8'))
   } catch {
-    fail(`${settingsFile} is not valid JSON.`, 'Fix it, then run this again.')
+    fail(`${file} is not valid JSON.`, 'Fix it, then run this again.')
   }
-  if (!isObject(settings)) fail(`${settingsFile} does not hold a JSON object.`, 'Fix it, then run this again.')
+  if (!isObject(settings)) fail(`${file} does not hold a JSON object.`, 'Fix it, then run this again.')
   if (settings.enabledPlugins !== undefined && !isObject(settings.enabledPlugins)) {
-    fail(`enabledPlugins in ${settingsFile} is not an object.`, 'Fix it, then run this again.')
+    fail(`enabledPlugins in ${file} is not an object.`, 'Fix it, then run this again.')
   }
   if (settings.hooks !== undefined && !isObject(settings.hooks)) {
-    fail(`hooks in ${settingsFile} is not an object.`, 'Fix it, then run this again.')
+    fail(`hooks in ${file} is not an object.`, 'Fix it, then run this again.')
   }
   if (settings.hooks?.SessionStart !== undefined && !Array.isArray(settings.hooks.SessionStart)) {
-    fail(`hooks.SessionStart in ${settingsFile} is not a list.`, 'Fix it, then run this again.')
+    fail(`hooks.SessionStart in ${file} is not a list.`, 'Fix it, then run this again.')
   }
   return settings
+}
+
+// Puts `command` in the settings' SessionStart hooks, keeping every other hook, and rewrites one
+// of `older` where it stands rather than adding beside it. Says what it did: set, rewritten, added.
+function addHook(settings, command, older = []) {
+  const sessionStart = settings.hooks?.SessionStart ?? []
+  const has = (test) =>
+    sessionStart.some((entry) => Array.isArray(entry?.hooks) && entry.hooks.some((hook) => test(hook?.command)))
+  if (has((existing) => existing === command)) return 'set'
+  if (has((existing) => older.includes(existing))) {
+    const rewrite = (hook) => (older.includes(hook?.command) ? { ...hook, command } : hook)
+    settings.hooks = {
+      ...settings.hooks,
+      SessionStart: sessionStart.map((entry) =>
+        Array.isArray(entry?.hooks) ? { ...entry, hooks: entry.hooks.map(rewrite) } : entry,
+      ),
+    }
+    return 'rewritten'
+  }
+  settings.hooks = { ...settings.hooks, SessionStart: [...sessionStart, { hooks: [{ type: 'command', command }] }] }
+  return 'added'
 }
 
 function pluginsOf(name, modules) {
@@ -150,7 +172,7 @@ function appendLine(file, line, same = [line]) {
 // on one, so a project that checks its formatting would fail on what init writes. The project's
 // own Prettier, when it has one, formats it instead, under the project's config. The config is
 // read here, before anything is written.
-async function jsonWriter() {
+async function jsonWriter(files) {
   let prettier
   try {
     prettier = createRequire(join(process.cwd(), 'package.json'))('prettier')
@@ -158,7 +180,7 @@ async function jsonWriter() {
     return async (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`)
   }
   const options = new Map()
-  for (const file of [manifestFile, settingsFile]) {
+  for (const file of files) {
     try {
       options.set(file, await prettier.resolveConfig(resolve(file)))
     } catch (error) {
@@ -172,7 +194,12 @@ async function jsonWriter() {
 async function init({ names, workspace }) {
   const modules = guard(() => findModules(kit))
   const key = check(names, workspace, modules)
-  const settings = readSettings()
+  const settings = readSettings(settingsFile)
+  // A session started in a workspace reads the workspace's settings, never the root's, so the
+  // workspace gets its own sync hook, reaching the root's kit one .. per level up. Spec:
+  // docs/superpowers/specs/2026-10-15-workspace-sessions-design.md.
+  const wsSettingsFile = key === '.' ? null : join(...key.split('/'), settingsFile)
+  const wsSettings = wsSettingsFile ? readSettings(wsSettingsFile) : null
   const manifest = existsSync(manifestFile) ? guard(() => readManifest(process.cwd())) : { workspaces: {} }
   const recorded = Object.keys(manifest.workspaces).find((k) => normalizeWorkspace(k) === key) ?? key
   const current = manifest.workspaces[recorded] ?? []
@@ -189,7 +216,7 @@ async function init({ names, workspace }) {
   const next = { ...manifest, workspaces: { ...manifest.workspaces, [recorded]: merged } }
   guard(() => plan(process.cwd(), kit, next))
   const plugins = guard(() => [...new Set(merged.flatMap((name) => pluginsOf(name, modules)))])
-  const writeJson = await jsonWriter()
+  const writeJson = await jsonWriter([manifestFile, settingsFile, ...(wsSettingsFile ? [wsSettingsFile] : [])])
 
   // Nothing has been written up to here.
   if (!(recorded in manifest.workspaces) || merged.length > current.length) {
@@ -202,37 +229,29 @@ async function init({ names, workspace }) {
 
   const enabled = settings.enabledPlugins ?? {}
   const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
-  const sessionStart = settings.hooks?.SessionStart ?? []
-  const hasHook = (test) =>
-    sessionStart.some((entry) => Array.isArray(entry?.hooks) && entry.hooks.some((hook) => test(hook?.command)))
-  const isOlder = (command) => olderHookCommands.includes(command)
-  const hooked = hasHook((command) => command === hookCommand)
-  const outdated = !hooked && hasHook(isOlder)
   if (newPlugins.length > 0) {
     settings.enabledPlugins = { ...enabled, ...Object.fromEntries(newPlugins.map((id) => [id, true])) }
   }
-  if (outdated) {
-    const rewrite = (hook) => (isOlder(hook?.command) ? { ...hook, command: hookCommand } : hook)
-    settings.hooks = {
-      ...settings.hooks,
-      SessionStart: sessionStart.map((entry) =>
-        Array.isArray(entry?.hooks) ? { ...entry, hooks: entry.hooks.map(rewrite) } : entry,
-      ),
-    }
-  } else if (!hooked) {
-    settings.hooks = {
-      ...settings.hooks,
-      SessionStart: [...sessionStart, { hooks: [{ type: 'command', command: hookCommand }] }],
-    }
-  }
-  if (newPlugins.length > 0 || !hooked) {
+  const hook = addHook(settings, hookCommand(), olderHookCommands)
+  if (newPlugins.length > 0 || hook !== 'set') {
     mkdirSync('.claude', { recursive: true })
     await writeJson(settingsFile, settings)
   }
   for (const id of plugins) console.log(newPlugins.includes(id) ? `✓ enabled ${id}` : `  ${id} already set`)
-  if (hooked) console.log('  the sync hook is already set')
-  else if (outdated) console.log(`✓ ${settingsFile}: rewrote the sync hook an older kit wrote`)
+  if (hook === 'set') console.log('  the sync hook is already set')
+  else if (hook === 'rewritten') console.log(`✓ ${settingsFile}: rewrote the sync hook an older kit wrote`)
   else console.log(`✓ ${settingsFile}: SessionStart runs charter sync`)
+
+  if (wsSettingsFile) {
+    const wsHook = addHook(wsSettings, hookCommand('/..'.repeat(key.split('/').length)))
+    if (wsHook === 'set') {
+      console.log(`  ${wsSettingsFile} already has the sync hook`)
+    } else {
+      mkdirSync(dirname(wsSettingsFile), { recursive: true })
+      await writeJson(wsSettingsFile, wsSettings)
+      console.log(`✓ ${wsSettingsFile}: SessionStart runs charter sync from the workspace`)
+    }
+  }
 
   console.log(appendLine('CLAUDE.md', coreImport) ? `✓ CLAUDE.md: ${coreImport}` : `  CLAUDE.md already has ${coreImport}`)
   const ignoredNow = appendLine('.gitignore', ignored, [ignored, ignored.slice(0, -1)])

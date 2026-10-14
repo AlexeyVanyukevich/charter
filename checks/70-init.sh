@@ -31,6 +31,18 @@ project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/charter"; echo "$tm
 fail() { echo "  ✗ $*"; exit 1; }
 hook='f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi'
 old_hook='node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
+# A workspace's hook reaches the root's kit through one .. per level of the workspace's path.
+ws_hook() {
+  printf 'f="$CLAUDE_PROJECT_DIR/%s/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi' "$1"
+}
+# The settings file holds the one SessionStart hook given, and nothing else of the kit's.
+only_hook() {
+  node -e '
+    const s = require(process.argv[1])
+    const commands = s.hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command))
+    if (JSON.stringify(commands) !== JSON.stringify([process.argv[2]]) || s.enabledPlugins !== undefined) throw new Error()
+  ' "$1" "$2" 2>/dev/null
+}
 
 # ── a first run ───────────────────────────────────────────────────────────────
 
@@ -186,9 +198,56 @@ grep -qx '  - "server/src/modules/\*\*"' "$p/.claude/rules/charter/server/backen
   fail "a workspace's rules were not synced with its prefix"
 [ -f "$p/.claude/rules/charter/apps/web/react/typescript.md" ] || fail "a nested workspace's rules were not synced"
 [ "$(cat "$p/CLAUDE.md")" = '@node_modules/charter/core/rules.md' ] || fail "core was not imported at the root, once"
-[ ! -e "$p/server/CLAUDE.md" ] && [ ! -e "$p/apps/web/.claude" ] || fail "init wrote into a workspace"
 grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
   fail "a workspace's plugins did not land in the root settings.json"
+
+# ── a workspace's own hook ────────────────────────────────────────────────────
+
+# A session started in a workspace reads the workspace's settings, never the root's, so each
+# workspace gets the sync hook too, pointing at the root's kit. Nothing else is written there.
+only_hook "$p/server/.claude/settings.json" "$(ws_hook ..)" ||
+  { echo "  ✗ server/.claude/settings.json does not hold exactly the workspace hook:"; cat "$p/server/.claude/settings.json"; exit 1; }
+only_hook "$p/apps/web/.claude/settings.json" "$(ws_hook ../..)" ||
+  { echo "  ✗ apps/web/.claude/settings.json does not hold the hook with ../..:"; cat "$p/apps/web/.claude/settings.json"; exit 1; }
+for ws in server apps/web; do
+  [ "$(cd "$p/$ws" && find . -type f | sort)" = './.claude/settings.json' ] ||
+    fail "init wrote into $ws more than its .claude/settings.json"
+done
+cp "$p/server/.claude/settings.json" "$tmp/ws-settings.before"
+( cd "$p" && node "$cli" init backend --workspace server ) >/dev/null || fail "a second init --workspace server failed"
+cmp -s "$p/server/.claude/settings.json" "$tmp/ws-settings.before" || fail "a second run changed the workspace's settings"
+
+# A workspace's own settings and hooks are kept.
+p="$(project ws-merge)"
+mkdir -p "$p/server/.claude"
+echo '{ "model": "opus", "hooks": { "SessionStart": [ { "hooks": [ { "type": "command", "command": "echo own" } ] } ],
+  "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "echo pre" } ] } ] } }' \
+  > "$p/server/.claude/settings.json"
+( cd "$p" && node "$cli" init backend --workspace server ) >/dev/null || fail "init into a workspace with its own settings failed"
+node -e '
+  const s = require(process.argv[1])
+  if (s.model !== "opus") throw new Error("model was dropped")
+  const commands = s.hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command))
+  if (JSON.stringify(commands) !== JSON.stringify(["echo own", process.argv[2]])) throw new Error("hooks")
+  if (s.hooks.PreToolUse?.[0]?.hooks?.[0]?.command !== "echo pre") throw new Error("another hook event was dropped")
+' "$p/server/.claude/settings.json" "$(ws_hook ..)" 2>/dev/null ||
+  { echo "  ✗ init changed or dropped something set in a workspace's settings:"; cat "$p/server/.claude/settings.json"; exit 1; }
+
+# Run as Claude Code runs it from the workspace: it syncs the root's mirror and prints core, which
+# the root CLAUDE.md's import does not reach there; before npm install it says to run it.
+rm -rf "$p/.claude/rules/charter"
+rmdir "$p/node_modules/charter"
+ln -s "$PWD" "$p/node_modules/charter"
+printed="$(cd "$p/server" && CLAUDE_PROJECT_DIR="$p/server" sh -c "$(ws_hook ..)")" ||
+  fail "the workspace hook failed with the kit installed"
+[ -f "$p/.claude/rules/charter/server/backend/http.md" ] || fail "the workspace hook did not sync the root's mirror"
+head -1 <<< "$printed" | grep -q '^charter: this session started in server/, below the repository root' &&
+  grep -qx '# Commits' <<< "$printed" && grep -qx '# Testing' <<< "$printed" ||
+  { echo "  ✗ the workspace hook did not print core:"; head -5 <<< "$printed"; exit 1; }
+rm "$p/node_modules/charter"
+err="$( (cd "$p/server" && CLAUDE_PROJECT_DIR="$p/server" sh -c "$(ws_hook ..)") 2>&1 >/dev/null )" &&
+  fail "the workspace hook succeeded without the kit"
+grep -q 'Run npm install' <<< "$err" || fail "without the kit, the workspace hook did not say to run npm install: got '$err'"
 
 # A UI workspace: a domain and four stacks, two of which ship a rule named journeys.md. The mirror
 # keeps them apart by module directory.
@@ -245,6 +304,8 @@ SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.jso
 SETUP='mkdir .claude && echo "{ \"hooks\": [] }" > .claude/settings.json' \
   refuses 'hooks as an array' 'hooks' init typescript
 SETUP='echo "{" > charter.json' refuses 'broken charter.json' 'charter.json' init typescript
+SETUP='mkdir -p server/.claude && echo "{" > server/.claude/settings.json' \
+  refuses "a workspace's broken settings JSON" 'server/.claude/settings.json' init typescript --workspace server
 # What sync would refuse — another workspace already recorded — init refuses before writing.
 SETUP='echo "{ \"workspaces\": { \"gone\": [\"node\"] } }" > charter.json' \
   refuses 'a recorded workspace that is gone' 'not a directory' init typescript

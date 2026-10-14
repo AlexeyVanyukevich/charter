@@ -115,29 +115,41 @@ holders() {
 if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1; then
   consumer="$(mktemp -d)"
   trap 'rm -rf "$consumer"' EXIT
-  mkdir -p "$consumer/node_modules/charter" "$consumer/src/modules/issues" "$consumer/scripts"
+  # The root and a server workspace both hold a routes file and a script, so the same questions are
+  # asked of a session started at the root and of one started in the workspace, which reads core
+  # from its own hook's output, not from the root CLAUDE.md's import.
+  for dir in . server; do mkdir -p "$consumer/$dir/src/modules/issues" "$consumer/$dir/scripts"; done
+  mkdir -p "$consumer/node_modules/charter"
   tarball="$(cd ../.. && npm pack --silent --pack-destination "$consumer")"
   tar -xzf "$consumer/$tarball" -C "$consumer/node_modules/charter" --strip-components 1
-  echo 'export const routes = []' > "$consumer/src/modules/issues/issue.routes.ts"
-  echo 'export const seed = 1' > "$consumer/scripts/seed.ts"
+  for dir in . server; do
+    echo 'export const routes = []' > "$consumer/$dir/src/modules/issues/issue.routes.ts"
+    echo 'export const seed = 1' > "$consumer/$dir/scripts/seed.ts"
+  done
   git -C "$consumer" init -q
-  ( cd "$consumer" && node node_modules/charter/bin/charter.mjs init backend typescript node vitest ) >/dev/null ||
+  ( cd "$consumer" && node node_modules/charter/bin/charter.mjs init backend typescript node vitest &&
+    node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server ) >/dev/null ||
     { echo "  ✗ charter init failed in the scratch consumer"; exit 1; }
 
+  # ask <directory the session starts in> <file to read, from there>
   ask() {
     rm -rf "$consumer/.claude/rules/charter"
-    ( cd "$consumer" && claude -p "First use Read on $1 and nothing else. Then answer from your loaded instructions only, never by searching files. Line 1: the date the backlog rule's example entry was found, or NONE. Line 2: the error code for a write whose Origin is not the app's own, or NONE. Nothing else." \
+    ( cd "$consumer/$1" && claude -p "First use Read on $2 and nothing else. Then answer from your loaded instructions only, never by searching files. Line 1: the date the backlog rule's example entry was found, or NONE. Line 2: the error code for a write whose Origin is not the app's own, or NONE. Nothing else." \
       --disallowedTools Bash Grep Glob Edit Write Agent WebFetch WebSearch 2>&1 || true ) | tr -d '`'
   }
   for run in 1 2 3; do
-    answer="$(ask scripts/seed.ts)"
-    grep -qF "$core_fact" <<< "$answer" && grep -qx 'NONE' <<< "$answer" && ! grep -qF "$path_fact" <<< "$answer" ||
-      { echo "  ✗ run $run: outside http.md's globs, wanted $core_fact and NONE. Got: $answer"; exit 1; }
-    answer="$(ask src/modules/issues/issue.routes.ts)"
-    grep -qF "$core_fact" <<< "$answer" && grep -qx "$path_fact" <<< "$answer" ||
-      { echo "  ✗ run $run: in a routes file, wanted $core_fact and $path_fact. Got: $answer"; exit 1; }
+    for dir in . server; do
+      at="$([ "$dir" = . ] && echo 'at the root' || echo "in $dir/")"
+      answer="$(ask "$dir" scripts/seed.ts)"
+      grep -qF "$core_fact" <<< "$answer" && grep -qx 'NONE' <<< "$answer" && ! grep -qF "$path_fact" <<< "$answer" ||
+        { echo "  ✗ run $run, started $at: outside http.md's globs, wanted $core_fact and NONE. Got: $answer"; exit 1; }
+      answer="$(ask "$dir" src/modules/issues/issue.routes.ts)"
+      grep -qF "$core_fact" <<< "$answer" && grep -qx "$path_fact" <<< "$answer" ||
+        { echo "  ✗ run $run, started $at: in a routes file, wanted $core_fact and $path_fact. Got: $answer"; exit 1; }
+    done
   done
-  echo "  ✓ three times over, a real session read core at once and http.md only in a matching file"
+  echo "  ✓ three times over, a real session started at the root and one started in a workspace each"
+  echo "    read core at once and http.md only in a matching file"
 else
   echo "  · session check skipped (no claude CLI, or CHARTER_SKIP_SESSION_CHECK set)"
 fi
