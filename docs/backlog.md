@@ -11,6 +11,37 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## `./check 40` counts a module that does not exist as zero lines
+
+- Where: `checks/40-rules.sh`, `worst()`
+- Found: 2026-10-14, while adding the `frontend` domain
+- Priority: P4
+- Problem: `worst()` globs each named module's rules and skips what it does not find, so a
+  misspelt or not-yet-written module adds nothing and the budget passes. Change `frontend` to
+  `frontnd` in the `ui_worst` line and run `./check 40`: it passes, 37 + 16 lines short.
+- Impact: a budget can be met by a typo; the check proves less than its message says
+
+## Accessibility is not part of a UI slice's spec
+
+- Where: the requirement template, which the requirements release adds
+- Found: 2026-10-14, deferred on purpose by `2026-10-13-frontend-design.md` §7
+- Priority: P3
+- Problem: the article the `frontend` domain came from asks a UI design to state focus order,
+  labels, heading structure, states and error behaviour before it is built. No rule reaches a
+  spec: specs live at the repository root, and `sync` prefixes a UI workspace's globs.
+- Impact: those decisions are made during implementation, by whoever writes the component
+
+## The `frontend-design` and `playwright` plugins still come from `react`
+
+- Where: `stacks/react/plugins.json`
+- Found: 2026-10-14, deferred on purpose by `2026-10-13-frontend-design.md` §7
+- Priority: P5
+- Problem: neither plugin is React's. `frontend-design` belongs to the `frontend` domain and the
+  `playwright` plugin to the `playwright` stack, which now exists. A Vue workspace taking
+  `frontend` and `playwright` would get neither.
+- Impact: moving them changes what an existing `react` workspace gets from its next `init`, so
+  it needs its own release note
+
 ## A session started in a workspace runs no sync and may read no `core`
 
 - Where: `README.md` "Onboarding a project"; `checks/40-rules.sh`

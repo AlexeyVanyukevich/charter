@@ -2,9 +2,9 @@
 
 The rules an application is written by, and the tooling configuration that goes with them,
 for the projects on this machine. They come in modules: `core` for every project; domains
-(`backend`) for principles that hold in any language; stacks (`typescript`, `node`, `react`,
-`vitest`) for a language's tools. Rules load by tier, so a session reads `core` always and the
-rest only where it works.
+(`backend`, `frontend`) for principles that hold in any language; stacks (`typescript`, `node`,
+`react`, `vitest`, `playwright`) for a language's tools. Rules load by tier, so a session reads
+`core` always and the rest only where it works.
 
 This is never published to the public npm registry. A package called `charter` on the public
 registry is an unrelated project and is not this one.
@@ -98,13 +98,16 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 | ------ | ---- | --- | ------ |
 | `core` | — | every project | six rules, loaded always; the commit-msg hook; `lib.sh`; ignore files |
 | `backend` | domain | HTTP services | three rules, by path |
+| `frontend` | domain | web interfaces | two rules, by path |
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
 | `node` | stack | Node services | one rule, by path; the NodeNext tsconfig; a lint config |
-| `react` | stack | bundled browser applications | one rule, by path; the browser tsconfig; a lint config; the `frontend-design` and `playwright` plugins |
+| `react` | stack | bundled browser applications | two rules, by path; the browser tsconfig; a lint config; the `frontend-design` and `playwright` plugins |
 | `vitest` | stack | a Vitest suite | a lint config |
+| `playwright` | stack | a Playwright suite | one rule, by path |
 
 `core` needs no naming: every project has it. A workspace takes a domain and its stacks — a
-Node service writes `backend`, `typescript`, `node` and `vitest`. **`node` and `react` never
+Node service writes `backend`, `typescript`, `node` and `vitest`; a React application writes
+`frontend`, `typescript`, `react`, `vitest` and `playwright`. **`node` and `react` never
 share a workspace,** because their import rules contradict: NodeNext wants a `.js` extension
 on a relative import, a bundler wants none. `init` refuses the pair.
 
@@ -121,7 +124,7 @@ root:
 
 ```bash
 npx --no charter init backend typescript node vitest --workspace server
-npx --no charter init typescript react vitest --workspace web
+npx --no charter init frontend typescript react vitest playwright --workspace web
 ```
 
 `init` with no modules is valid and brings `core` alone. It writes the modules into
@@ -131,7 +134,7 @@ npx --no charter init typescript react vitest --workspace web
 {
   "workspaces": {
     "server": ["backend", "typescript", "node", "vitest"],
-    "web": ["typescript", "react", "vitest"]
+    "web": ["frontend", "typescript", "react", "vitest", "playwright"]
   }
 }
 ```
@@ -187,9 +190,16 @@ missing workspace directory is refused before anything is written, with the caus
 | `backend` | `http.md` | `src/*`, `src/modules/**`, `src/shared/**` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
 | `backend` | `layout.md` | `src/**` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |
 | `backend` | `database-tests.md` | `tests/integration/**` | Integration tests against a real PostgreSQL, started by Testcontainers |
+| `frontend` | `accessibility.md` | `src/**`, `**/*.css` | WCAG 2.2 AA; widget behaviour from the platform or a library; state, focus, announcements, page structure |
+| `frontend` | `journeys.md` | `tests/ui/**` | Find by role, an axe-core scan of every state, a keyboard-only journey, what review must admit |
 | `typescript` | `typescript.md` | `**/*.{ts,tsx,mts,cts}`, `**/tsconfig*.json` | Compiler strictness, no `any` in hand-written code |
 | `node` | `typescript.md` | `**/*.{ts,mts,cts}`, `**/tsconfig*.json` | NodeNext's `.js` imports, the `typebox` package, the one accepted `any` |
 | `react` | `typescript.md` | `**/*.{ts,tsx}` | Bundler resolution: no extension on relative imports |
+| `react` | `widgets.md` | `**/*.tsx` | React Aria — its hooks in a component kit; `jsx-a11y` findings are fixed, not silenced |
+| `playwright` | `journeys.md` | `tests/ui/**` | `page.getByRole` and `@axe-core/playwright`'s `AxeBuilder` |
+
+The `frontend` domain repeats nothing an element-level linter catches, so it holds only beside a
+stack that brings one: `react`'s lint config turns on `jsx-a11y`.
 
 **`core` must be installed as a real directory** — from the registry or over git, as above.
 `npm link` and a `file:` dependency install a symlink, and Claude Code does not follow an
