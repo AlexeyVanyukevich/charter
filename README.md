@@ -151,9 +151,10 @@ and then adds what is missing, changing nothing that is set:
   module's `plugins.json`: `frontend` brings `frontend-design`, and `playwright` the
   `playwright` plugin. A plugin set to `false` stays off. Up to 3.2, `react` brought both;
   `init` turns nothing off, so a workspace onboarded then keeps them.
-- for `--workspace <dir>`, the same hook in `<dir>/.claude/settings.json`, reaching the root's
-  kit through one `..` per level — `../..` for `apps/web`. A session started in the workspace
-  reads that file, never the root's.
+- for `--workspace <dir>`, the same hook and the same plugins in `<dir>/.claude/settings.json`,
+  the hook reaching the root's kit through one `..` per level — `../..` for `apps/web`. A
+  session started in the workspace reads that file, never the root's. The plugins installed for
+  the root serve it.
 - `.claude/rules/charter/` in `.gitignore`.
 
 It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is
@@ -172,11 +173,11 @@ the root's and each workspace's. **Never commit `.claude/rules/charter/`:** it i
 
 A session started in a recorded workspace reads what one started at the root reads: its own hook
 syncs the root's mirror, whose rules load from there too, and prints `core`, which the root
-`CLAUDE.md`'s import does not reach from a workspace. The root is still the better place to
-start: the plugins are turned on in the root's settings only, and rules are scoped by path, so
-one root session can work on every workspace without loading the others' rules. A directory that
-is not a recorded workspace, as `server/src`, has no hook: a session started there gets neither
-`core` nor a fresh mirror.
+`CLAUDE.md`'s import does not reach from a workspace; its settings turn on its modules' plugins.
+The root is still the better place to start: rules are scoped by path, so one root session can
+work on every workspace without loading the others' rules. A directory that is not a recorded
+workspace, as `server/src`, has no settings of its own: a session started there gets neither
+`core`, nor a fresh mirror, nor the plugins.
 
 **A committed plugin is turned on, not downloaded.** Each clone installs it once:
 `need_plugins`, in the `./run` frame below, does that.
