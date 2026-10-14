@@ -178,7 +178,8 @@ which the hook sets, and otherwise the working directory. It reads `charter.json
 mirror at `.claude/rules/charter/<workspace>/<module>/<rule>.md`, with the root workspace as
 `@root`. It prefixes each pattern with the workspace's path — for the workspace `server`,
 `src/modules/**` becomes `server/src/modules/**` — and copies the rest of the rule unchanged.
-It deletes mirrored files the kit no longer ships. An invalid manifest, an unknown module or a
+It deletes mirrored files the kit no longer ships. A symlink inside the mirror, or as the mirror,
+is removed as a link and never followed. An invalid manifest, an unknown module or a
 missing workspace directory is refused before anything is written, with the cause on stderr.
 
 | Module | Rule | `paths:` | Covers |

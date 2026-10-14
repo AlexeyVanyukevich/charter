@@ -92,6 +92,33 @@ run >/dev/null || fail "sync failed beside a symlink in the mirror"
 [ ! -L "$out/server/linkdir" ] || fail "a symlink in the mirror survived"
 [ -f "$p/outside-dir/k.md" ] || fail "sync followed a symlink out of the mirror and deleted through it"
 
+# A symlink where the mirror wants a file, or a directory, or as the mirror itself, is replaced
+# by the real thing; what it points at is never written or pruned through.
+echo own > "$p/outside-file.md"
+rm "$out/server/alpha/a.md"
+ln -s "$p/outside-file.md" "$out/server/alpha/a.md"
+run >/dev/null || fail "sync failed over a symlinked rule"
+[ "$(cat "$p/outside-file.md")" = own ] || fail "sync wrote through a symlink at a rule's path"
+[ ! -L "$out/server/alpha/a.md" ] && grep -q 'Alpha body' "$out/server/alpha/a.md" ||
+  fail "a symlink at a rule's path was not replaced by the rule"
+
+mkdir "$p/outside-alpha"
+rm -rf "$out/server/alpha"
+ln -s "$p/outside-alpha" "$out/server/alpha"
+run >/dev/null || fail "sync failed over a symlinked module directory"
+[ -z "$(ls -A "$p/outside-alpha")" ] || fail "sync wrote through a symlinked directory in the mirror"
+[ ! -L "$out/server/alpha" ] && [ -f "$out/server/alpha/a.md" ] ||
+  fail "a symlinked directory in the mirror was not replaced by a real one"
+
+mkdir -p "$p/outside-root/stale"
+echo own > "$p/outside-root/stale/x.md"
+rm -rf "$out"
+ln -s "$p/outside-root" "$out"
+run >/dev/null || fail "sync failed over a symlinked mirror"
+[ -f "$p/outside-root/stale/x.md" ] || fail "sync pruned through a symlinked mirror"
+[ ! -e "$p/outside-root/server" ] || fail "sync wrote through a symlinked mirror"
+[ ! -L "$out" ] && [ -f "$out/server/alpha/a.md" ] || fail "a symlinked mirror was not replaced by a real one"
+
 # ── sync roots at CLAUDE_PROJECT_DIR, not at the directory it runs in ─────────
 
 rm -rf "$out"
