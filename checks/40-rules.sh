@@ -70,6 +70,9 @@ worst() {
   local m f
   local files=("$kit"/core/rules/*.md)
   for m in "$@"; do
+    # A module with no rules, as vitest, adds nothing; a name that is no module is a typo.
+    [ -d "$kit/domains/$m" ] || [ -d "$kit/stacks/$m" ] ||
+      { echo "  ✗ a budget names $m, which is not a module" >&2; exit 1; }
     for f in "$kit"/domains/"$m"/rules/*.md "$kit"/stacks/"$m"/rules/*.md; do
       [ -e "$f" ] && files+=("$f")
     done

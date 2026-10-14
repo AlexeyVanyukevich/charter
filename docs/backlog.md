@@ -34,16 +34,6 @@ turning it on.
 - Impact: in hand-written markup, the commonest generated-UI failure is found only by a
   keyboard-only journey that happens to reach it
 
-## `./check 40` counts a module that does not exist as zero lines
-
-- Where: `checks/40-rules.sh`, `worst()`
-- Found: 2026-10-14, while adding the `frontend` domain
-- Priority: P4
-- Problem: `worst()` globs each named module's rules and skips what it does not find, so a
-  misspelt or not-yet-written module adds nothing and the budget passes. Change `frontend` to
-  `frontnd` in the `ui_worst` line and run `./check 40`: it passes, 37 + 16 lines short.
-- Impact: a budget can be met by a typo; the check proves less than its message says
-
 ## Accessibility is not part of a UI slice's spec
 
 - Where: the requirement template, which the requirements release adds
