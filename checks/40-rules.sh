@@ -77,13 +77,13 @@ worst() {
   total "${files[@]}"
 }
 backend_worst="$(worst backend typescript node vitest)"
-react_worst="$(worst typescript react vitest)"
+ui_worst="$(worst frontend typescript react vitest playwright)"
 [ "$backend_worst" -le 225 ] || {
   echo "  ✗ core + backend, typescript, node, vitest is $backend_worst lines if every glob matched; the limit is 225. Move a rule to the module that needs it rather than raising the limit."
   exit 1
 }
-[ "$react_worst" -le 225 ] || {
-  echo "  ✗ core + typescript, react, vitest is $react_worst lines if every glob matched; the limit is 225. Move a rule to the module that needs it rather than raising the limit."
+[ "$ui_worst" -le 225 ] || {
+  echo "  ✗ core + frontend, typescript, react, vitest, playwright is $ui_worst lines if every glob matched; the limit is 225. Move a rule to the module that needs it rather than raising the limit."
   exit 1
 }
 
@@ -140,4 +140,4 @@ else
 fi
 
 echo "  ✓ $checked rules: core loads always ($always lines), the rest by path; a backend"
-echo "    workspace reads at most $backend_worst, a react one $react_worst"
+echo "    workspace reads at most $backend_worst, a UI one $ui_worst"
