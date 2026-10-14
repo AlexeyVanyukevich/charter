@@ -28,7 +28,7 @@ fired() {
     return 1
   fi
   local rules
-  rules="$(grep -oE '\[(Error|Warning)/[a-z_-]+\([a-z-]+\)\]' <<< "$out" |
+  rules="$(grep -oE '\[(Error|Warning)/[a-z0-9_-]+\([a-z0-9-]+\)\]' <<< "$out" |
     sed -E 's/^\[[A-Za-z]+\/(.*)\]$/\1/' | sort -u | tr '\n' ' ' | sed 's/ $//')"
   echo "${rules:--}"
 }
@@ -49,6 +49,8 @@ node|migrations/0001.ts|-
 node|any.ts|typescript(no-explicit-any)
 react|onclick.tsx|-
 react|key.tsx|react(jsx-key)
+react|a11y.tsx|jsx-a11y(click-events-have-key-events) jsx-a11y(no-static-element-interactions)
+typescript|a11y.tsx|-
 typescript vitest|focused.test.ts|vitest(no-focused-tests)
 typescript vitest|message.test.ts|-
 node vitest|any.ts focused.test.ts|typescript(no-explicit-any) vitest(no-focused-tests)
