@@ -3,8 +3,8 @@
 The rules an application is written by, and the tooling configuration that goes with them,
 for the projects on this machine. They come in modules: `core` for every project; domains
 (`backend`, `frontend`) for principles that hold in any language; stacks (`typescript`, `node`,
-`react`, `vitest`, `playwright`) for a language's tools. Rules load by tier, so a session reads
-`core` always and the rest only where it works.
+`react`, `html`, `vitest`, `playwright`) for a language's tools. Rules load by tier, so a
+session reads `core` always and the rest only where it works.
 
 This is never published to the public npm registry. A package called `charter` on the public
 registry is an unrelated project and is not this one.
@@ -102,12 +102,14 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
 | `node` | stack | Node services | one rule, by path; the NodeNext tsconfig; a lint config |
 | `react` | stack | bundled browser applications | two rules, by path; the browser tsconfig; a lint config; the `frontend-design` and `playwright` plugins |
+| `html` | stack | hand-written HTML files | an html-validate config; `charter scan` |
 | `vitest` | stack | a Vitest suite | a lint config |
 | `playwright` | stack | a Playwright suite | one rule, by path |
 
 `core` needs no naming: every project has it. A workspace takes a domain and its stacks — a
 Node service writes `backend`, `typescript`, `node` and `vitest`; a React application writes
-`frontend`, `typescript`, `react`, `vitest` and `playwright`. **`node` and `react` never
+`frontend`, `typescript`, `react`, `vitest` and `playwright`, and adds `html` when it keeps
+hand-written HTML files, as a component kit's reference markup. **`node` and `react` never
 share a workspace,** because their import rules contradict: NodeNext wants a `.js` extension
 on a relative import, a bundler wants none. `init` refuses the pair.
 
@@ -190,7 +192,7 @@ missing workspace directory is refused before anything is written, with the caus
 | `backend` | `http.md` | `src/*`, `src/modules/**`, `src/shared/**` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
 | `backend` | `layout.md` | `src/**` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |
 | `backend` | `database-tests.md` | `tests/integration/**` | Integration tests against a real PostgreSQL, started by Testcontainers |
-| `frontend` | `accessibility.md` | `src/**`, `**/*.css` | WCAG 2.2 AA; widget behaviour from the platform or a library; state, focus, announcements, page structure |
+| `frontend` | `accessibility.md` | `src/**`, `**/*.css`, `**/*.html` | WCAG 2.2 AA; widget behaviour from the platform or a library; state, focus, announcements, page structure |
 | `frontend` | `journeys.md` | `tests/ui/**` | Find by role, an axe-core scan of every state, a keyboard-only journey, what review must admit |
 | `typescript` | `typescript.md` | `**/*.{ts,tsx,mts,cts}`, `**/tsconfig*.json` | Compiler strictness, no `any` in hand-written code |
 | `node` | `typescript.md` | `**/*.{ts,mts,cts}`, `**/tsconfig*.json` | NodeNext's `.js` imports, the `typebox` package, the one accepted `any` |
@@ -199,7 +201,8 @@ missing workspace directory is refused before anything is written, with the caus
 | `playwright` | `journeys.md` | `tests/ui/**` | `page.getByRole` and `@axe-core/playwright`'s `AxeBuilder` |
 
 The `frontend` domain repeats nothing an element-level linter catches, so it holds only beside a
-stack that brings one: `react`'s lint config turns on `jsx-a11y`.
+stack that brings one: `react`'s lint config turns on `jsx-a11y` for JSX, and `html` checks
+hand-written HTML files.
 
 **`core` must be installed as a real directory** — from the registry or over git, as above.
 `npm link` and a `file:` dependency install a symlink, and Claude Code does not follow an
@@ -316,6 +319,45 @@ and explicit `any`. The rest, as far as a sample showed, were real bugs: unhandl
 a non-exhaustive switch.
 A rule a project wants differently goes in its own `.oxlintrc.json` under `rules`, which wins
 over the kit's.
+
+### Markup
+
+oxlint does not read `.html` files. The `html` stack checks them with two tools, because each
+catches what the other misses: html-validate knows the HTML content model and does not
+validate ARIA at all; axe-core validates ARIA and not the content model. A project installs
+both, and jsdom for axe-core to run in:
+
+```bash
+npm install -D html-validate axe-core jsdom
+```
+
+and writes `.htmlvalidate.json`:
+
+```json
+{ "root": true, "extends": ["./node_modules/charter/stacks/html/htmlvalidate.json"] }
+```
+
+The config extends html-validate's `standard` and `a11y` presets and turns on
+`input-missing-label`. It does not take `recommended`, whose style rules contradict Prettier
+— `doctype-style` wants `<!DOCTYPE html>`, Prettier writes `<!doctype html>`. Then, wherever the
+project runs its other checks:
+
+```bash
+npx html-validate <dir>
+npx --no charter scan <file or directory…>
+```
+
+`charter scan` parses each file with jsdom and runs axe-core on it under the five WCAG tags
+the `frontend` journeys rule names. A directory is walked for `*.html`, past `node_modules` and
+dot-directories. A file with no `<html` tag is a fragment, and `document-title` and
+`html-has-lang`, which judge a whole page, are off for it. Each violation prints as
+`<file>: <rule> — <help>`, and any violation exits 1; a clean run prints nothing. axe-core and
+jsdom are found the way Node finds any package, from the working directory upwards — never
+from beside the kit, which brings no dependencies.
+
+**A static scan is not a browser.** Colour contrast needs layout, so axe-core leaves it
+undecided, and a click handler on a `<div>` is caught by neither tool. The journeys' scans and
+keyboard runs in a real browser cover both.
 
 ### The `./run` skeleton
 
