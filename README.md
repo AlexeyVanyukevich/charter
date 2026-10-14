@@ -206,7 +206,7 @@ missing workspace directory is refused before anything is written, with the caus
 | Module | Rule | `paths:` | Covers |
 | ------ | ---- | -------- | ------ |
 | `core` | `commits.md` | always | Conventional Commits, the subject line as the whole message, rebase-only merges, release commits |
-| `core` | `documentation.md` | always | `architecture.md` is authoritative; specs and plans are dated records |
+| `core` | `documentation.md` | always | `architecture.md` is authoritative; specs and plans are dated records; a UI slice's spec states its accessibility |
 | `core` | `writing.md` | always | Refer to projects by role; name something only when the name is load-bearing |
 | `core` | `review.md` | always | A session ends by showing everything it changed, and what it decided alone |
 | `core` | `backlog.md` | always | Findings left unfixed go in `docs/backlog.md`, one entry each, deleted by the fix |
