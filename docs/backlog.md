@@ -11,6 +11,17 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## Nothing static catches a click handler on a non-interactive element in HTML
+
+- Where: `stacks/html/htmlvalidate.json`; `bin/scan.mjs`
+- Found: 2026-10-14, while adding the `html` stack
+- Priority: P4
+- Problem: `jsx-a11y` flags `<div onClick>` in JSX, but neither html-validate nor axe-core
+  flags `<div onclick="…">` in an `.html` file. Add one to `tests/fixture/html/fragment.html`
+  and run `./check 95`: both tools still report nothing for it.
+- Impact: in hand-written markup, the commonest generated-UI failure is found only by a
+  keyboard-only journey that happens to reach it
+
 ## `./check 40` counts a module that does not exist as zero lines
 
 - Where: `checks/40-rules.sh`, `worst()`
