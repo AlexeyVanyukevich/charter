@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { KitError, findModules } from './modules.mjs'
 import { scan } from './scan.mjs'
-import { manifestFile, normalizeWorkspace, plan, readManifest, sync } from './sync.mjs'
+import { coreText, findRoot, manifestFile, normalizeWorkspace, plan, readManifest, sync } from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const usage =
@@ -257,10 +257,21 @@ async function init({ names, workspace }) {
 
 const options = parse(process.argv.slice(2))
 if (options.command === 'sync') {
-  // The hook runs with CLAUDE_PROJECT_DIR set to the directory the session started in, which is
-  // the root when sessions start at the root, as the README says; by hand, sync runs in the
-  // working directory.
-  guard(() => sync(process.env.CLAUDE_PROJECT_DIR || process.cwd(), kit))
+  // A hook runs with CLAUDE_PROJECT_DIR set to the directory the session started in: the root, or
+  // a workspace whose own hook this is. By hand, sync starts from the working directory. Either
+  // way the root is the nearest directory upwards that holds charter.json.
+  const start = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd())
+  const root = guard(() => findRoot(start))
+  guard(() => sync(root, kit))
+  // Below the root, the root CLAUDE.md's import of core does not reach the session, and the hook's
+  // stdout does. Spec: docs/superpowers/specs/2026-10-15-workspace-sessions-design.md.
+  if (process.env.CLAUDE_PROJECT_DIR && start !== root) {
+    const where = relative(root, start).split(sep).join('/')
+    console.log(
+      `charter: this session started in ${where}/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow.`,
+    )
+    console.log(`\n${coreText(kit)}`)
+  }
   process.exit(0)
 }
 if (options.command === 'scan') {

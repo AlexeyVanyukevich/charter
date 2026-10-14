@@ -13,7 +13,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs'
-import { dirname, isAbsolute, join, posix, relative, sep } from 'node:path'
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path'
 import { KitError, findModules } from './modules.mjs'
 
 export const manifestFile = 'charter.json'
@@ -49,6 +49,30 @@ export function readManifest(root) {
     }
   }
   return manifest
+}
+
+// The nearest directory from start upwards that holds charter.json: the root itself for a session
+// started there, the repository root for one started in a workspace.
+export function findRoot(start) {
+  let dir = resolve(start)
+  for (;;) {
+    if (existsSync(join(dir, manifestFile))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) {
+      throw new KitError(
+        `There is no ${manifestFile} in ${start} or any directory above it.`,
+        'Run npx charter init at the repository root.',
+      )
+    }
+    dir = parent
+  }
+}
+
+// core's rules in its index's order, for a session the root CLAUDE.md's import does not reach.
+export function coreText(kit) {
+  const index = readFileSync(join(kit, 'core', 'rules.md'), 'utf8')
+  const files = [...index.matchAll(/^@(rules\/\S+\.md)\r?$/gm)].map((match) => match[1])
+  return files.map((file) => readFileSync(join(kit, 'core', file), 'utf8').trimEnd()).join('\n\n')
 }
 
 // The block's form is fixed so that no YAML parser is needed: ---, paths:, one   - "<pattern>"

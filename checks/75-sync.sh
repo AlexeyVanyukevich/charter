@@ -21,6 +21,11 @@ printf -- '---\npaths:\n  - "**/*.ts"\n---\n# Beta\n' > "$kit/stacks/beta/rules/
 # CRLF, as a kit checked out on Windows has it, parses the same.
 printf -- '---\r\npaths:\r\n  - "tests/**"\r\n---\r\n# Beta two\r\n\r\nBeta two body.\r\n' > "$kit/stacks/beta/rules/c.md"
 echo '{}' > "$kit/stacks/gamma/oxlint.json"
+# core's index names its rules out of alphabetical order, so printing them in its order shows.
+mkdir -p "$kit/core/rules"
+printf '# Core\n\n@rules/zeta.md\n@rules/eta.md\n' > "$kit/core/rules.md"
+printf '# Zeta\n\nZeta body.\n' > "$kit/core/rules/zeta.md"
+printf '# Eta\n\nEta body.\n' > "$kit/core/rules/eta.md"
 out="$p/.claude/rules/charter"
 
 run() { (cd "$p" && node node_modules/charter/bin/charter.mjs sync); }
@@ -122,10 +127,32 @@ run >/dev/null || fail "sync failed over a symlinked mirror"
 # ── sync roots at CLAUDE_PROJECT_DIR, not at the directory it runs in ─────────
 
 rm -rf "$out"
-( cd "$p/server" && CLAUDE_PROJECT_DIR="$p" node ../node_modules/charter/bin/charter.mjs sync ) ||
+printed="$( cd "$p/server" && CLAUDE_PROJECT_DIR="$p" node ../node_modules/charter/bin/charter.mjs sync )" ||
   fail "sync failed when run from a subdirectory"
 [ -f "$out/server/alpha/a.md" ] || fail "sync did not write at CLAUDE_PROJECT_DIR"
 [ ! -e "$p/server/.claude" ] || fail "sync wrote into the directory it was run from"
+[ -z "$printed" ] || fail "a hook's sync at the root printed '$printed'"
+
+# ── from a workspace: the root found by walking up, and core printed ──────────
+
+# A session started in a workspace runs the workspace's hook, with CLAUDE_PROJECT_DIR set to the
+# workspace. sync walks up to the nearest charter.json and syncs the root's mirror, then prints
+# core, which the root CLAUDE.md's import does not reach from there.
+rm -rf "$out"
+printed="$( cd "$p" && CLAUDE_PROJECT_DIR="$p/server/api" node node_modules/charter/bin/charter.mjs sync )" ||
+  fail "sync failed with CLAUDE_PROJECT_DIR in a workspace"
+[ -f "$out/server/alpha/a.md" ] || fail "sync from a workspace did not write the root's mirror"
+[ ! -e "$p/server/api/.claude" ] && [ ! -e "$p/server/.claude" ] || fail "sync from a workspace wrote into it"
+expected="charter: this session started in server/api/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow."
+expected+=$'\n\n# Zeta\n\nZeta body.\n\n# Eta\n\nEta body.'
+[ "$printed" = "$expected" ] || { echo "  ✗ sync from a workspace did not print core in its index's order:"; echo "$printed"; exit 1; }
+
+# By hand there is no session to read core, so a run from a workspace syncs the root, silently.
+rm -rf "$out"
+printed="$( cd "$p/server" && env -u CLAUDE_PROJECT_DIR node ../node_modules/charter/bin/charter.mjs sync )" ||
+  fail "sync by hand from a workspace failed"
+[ -f "$out/server/alpha/a.md" ] || fail "sync by hand from a workspace did not write the root's mirror"
+[ -z "$printed" ] || fail "sync by hand from a workspace printed '$printed'"
 
 # ── refusals: exit 1, the cause on stderr, nothing written ────────────────────
 
@@ -171,5 +198,6 @@ err="$( (cd "$p" && node node_modules/charter/bin/charter.mjs sync extra) 2>&1 >
   fail "sync accepted an argument"
 grep -q 'no arguments' <<< "$err" || fail "sync with an argument did not say it takes none: got '$err'"
 
-echo "  ✓ sync mirrors and prefixes each workspace's rules, deletes what was dropped, prints"
-echo "    nothing, and writes nothing when refusing; one run took ${took} ms"
+echo "  ✓ sync mirrors and prefixes each workspace's rules, deletes what was dropped, finds the"
+echo "    root from a workspace and prints core there, prints nothing at the root, and writes"
+echo "    nothing when refusing; one run took ${took} ms"
