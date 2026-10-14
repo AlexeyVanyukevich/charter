@@ -29,7 +29,8 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/charter"; echo "$tmp/$1"; }
 fail() { echo "  ✗ $*"; exit 1; }
-hook='node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
+hook='f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi'
+old_hook='node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
 
 # ── a first run ───────────────────────────────────────────────────────────────
 
@@ -69,6 +70,34 @@ printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":%s}]}]}}
 cp "$p/.claude/settings.json" "$tmp/settings.before"
 ( cd "$p" && node "$cli" init typescript ) >/dev/null || fail "init with its hook already set failed"
 cmp -s "$p/.claude/settings.json" "$tmp/settings.before" || fail "init rewrote settings.json with nothing to add"
+
+# ── the sync hook ─────────────────────────────────────────────────────────────
+
+# Run as Claude Code runs it, through a shell with CLAUDE_PROJECT_DIR set: with the kit installed
+# it syncs; on a fresh clone, before npm install, it says so instead of printing Node's stack.
+p="$(project hook)"
+( cd "$p" && node "$cli" init backend ) >/dev/null || fail "init backend failed"
+rm -rf "$p/.claude/rules/charter"
+rmdir "$p/node_modules/charter"
+ln -s "$PWD" "$p/node_modules/charter"
+( cd "$p" && CLAUDE_PROJECT_DIR="$p" sh -c "$hook" ) || fail "the hook failed with the kit installed"
+[ -f "$p/.claude/rules/charter/@root/backend/http.md" ] || fail "the hook did not sync"
+rm "$p/node_modules/charter"
+err="$( (cd "$p" && CLAUDE_PROJECT_DIR="$p" sh -c "$hook") 2>&1 >/dev/null )" && fail "the hook succeeded without the kit"
+grep -q 'Run npm install' <<< "$err" && ! grep -q 'Cannot find module' <<< "$err" ||
+  fail "without the kit, the hook did not say to run npm install: got '$err'"
+
+# The hook an older kit wrote is brought up to date where it stands, not kept beside a new one.
+p="$(project oldhook)"
+mkdir -p "$p/.claude"
+printf '{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":%s}]},{"hooks":[{"type":"command","command":"echo own"}]}]}}\n' \
+  "$(node -p 'JSON.stringify(process.argv[1])' "$old_hook")" > "$p/.claude/settings.json"
+( cd "$p" && node "$cli" init ) >/dev/null || fail "init over an older kit's hook failed"
+node -e '
+  const commands = require(process.argv[1]).hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command))
+  if (JSON.stringify(commands) !== JSON.stringify([process.argv[2], "echo own"])) throw new Error()
+' "$p/.claude/settings.json" "$hook" 2>/dev/null ||
+  { echo "  ✗ an older kit's hook was not rewritten in place:"; cat "$p/.claude/settings.json"; exit 1; }
 
 # ── no modules: core alone ────────────────────────────────────────────────────
 

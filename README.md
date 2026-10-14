@@ -145,9 +145,11 @@ and then adds what is missing, changing nothing that is set:
 
 - `@node_modules/charter/core/rules.md` in the root `CLAUDE.md`. A workspace needs no
   `CLAUDE.md` import of its own: rules are scoped by path, for a session started at the root.
-- in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync`, and the plugins
-  of the named modules, which are listed in a module's `plugins.json`. Only `react` has one:
-  `frontend-design` and `playwright`. A plugin set to `false` stays off.
+- in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync` — or, on a clone
+  where `npm install` has not run yet, fails saying to run it. The hook an older kit wrote is
+  rewritten where it stands. Then the plugins of the named modules, which are listed in a
+  module's `plugins.json`. Only `react` has one: `frontend-design` and `playwright`. A plugin
+  set to `false` stays off.
 - `.claude/rules/charter/` in `.gitignore`.
 
 It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is

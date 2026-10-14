@@ -56,24 +56,16 @@ turning it on.
 - Impact: a session started in a workspace silently has no synced path rules and may have no
   `core`
 
-## The hook prints a raw Node "Cannot find module" before `npm install`
-
-- Where: the `SessionStart` hook `charter init` writes
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P4
-- Problem: on a fresh clone `node_modules/charter` does not exist yet, so the hook's `node`
-  command fails. Clone an onboarded project, start a session before `npm install`, and read the
-  hook output.
-- Impact: every session start shows Node's stack-like error instead of "run npm install"
-
 ## The sync hook has never run on Windows
 
-- Where: the `SessionStart` hook `charter init` writes, `node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync`
+- Where: the `SessionStart` hook `charter init` writes, a POSIX shell line around
+  `node "$f" sync` with `f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"`
 - Found: 2026-10-13, while designing 3.0
 - Priority: P2 — some consuming projects are developed on Windows
-- Problem: the command relies on `"$CLAUDE_PROJECT_DIR"` being expanded, which depends on the
-  shell Claude Code runs hooks through on Windows. Nothing here has run it there. Start a
-  session on a Windows checkout and look for `.claude/rules/charter/`.
+- Problem: the command relies on a POSIX shell — `"$CLAUDE_PROJECT_DIR"` expanded, `if [ -f … ]`
+  understood — which depends on the shell Claude Code runs hooks through on Windows. Nothing
+  here has run it there. Start a session on a Windows checkout and look for
+  `.claude/rules/charter/`.
 - Impact: if the variable is not expanded, `sync` never runs on that machine and no path rule
   loads there — silently, since the hook's error is shown to the person, not the model.
 

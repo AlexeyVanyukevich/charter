@@ -25,7 +25,12 @@ const usage =
 const settingsFile = join('.claude', 'settings.json')
 const coreImport = '@node_modules/charter/core/rules.md'
 const ignored = '.claude/rules/charter/'
-const hookCommand = 'node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
+// On a fresh clone the kit is not installed yet, and node alone would print its module-not-found
+// stack where the person needs to read "run npm install".
+const hookCommand =
+  'f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi'
+// What older kits wrote; init rewrites it where it stands.
+const olderHookCommands = ['node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync']
 // Their TypeScript rules contradict each other on relative imports, so no workspace takes both.
 const exclusive = ['node', 'react']
 
@@ -198,13 +203,23 @@ async function init({ names, workspace }) {
   const enabled = settings.enabledPlugins ?? {}
   const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
   const sessionStart = settings.hooks?.SessionStart ?? []
-  const hooked = sessionStart.some(
-    (entry) => Array.isArray(entry?.hooks) && entry.hooks.some((hook) => hook?.command === hookCommand),
-  )
+  const hasHook = (test) =>
+    sessionStart.some((entry) => Array.isArray(entry?.hooks) && entry.hooks.some((hook) => test(hook?.command)))
+  const isOlder = (command) => olderHookCommands.includes(command)
+  const hooked = hasHook((command) => command === hookCommand)
+  const outdated = !hooked && hasHook(isOlder)
   if (newPlugins.length > 0) {
     settings.enabledPlugins = { ...enabled, ...Object.fromEntries(newPlugins.map((id) => [id, true])) }
   }
-  if (!hooked) {
+  if (outdated) {
+    const rewrite = (hook) => (isOlder(hook?.command) ? { ...hook, command: hookCommand } : hook)
+    settings.hooks = {
+      ...settings.hooks,
+      SessionStart: sessionStart.map((entry) =>
+        Array.isArray(entry?.hooks) ? { ...entry, hooks: entry.hooks.map(rewrite) } : entry,
+      ),
+    }
+  } else if (!hooked) {
     settings.hooks = {
       ...settings.hooks,
       SessionStart: [...sessionStart, { hooks: [{ type: 'command', command: hookCommand }] }],
@@ -215,7 +230,9 @@ async function init({ names, workspace }) {
     await writeJson(settingsFile, settings)
   }
   for (const id of plugins) console.log(newPlugins.includes(id) ? `✓ enabled ${id}` : `  ${id} already set`)
-  console.log(hooked ? '  the sync hook is already set' : `✓ ${settingsFile}: SessionStart runs charter sync`)
+  if (hooked) console.log('  the sync hook is already set')
+  else if (outdated) console.log(`✓ ${settingsFile}: rewrote the sync hook an older kit wrote`)
+  else console.log(`✓ ${settingsFile}: SessionStart runs charter sync`)
 
   console.log(appendLine('CLAUDE.md', coreImport) ? `✓ CLAUDE.md: ${coreImport}` : `  CLAUDE.md already has ${coreImport}`)
   const ignoredNow = appendLine('.gitignore', ignored, [ignored, ignored.slice(0, -1)])
