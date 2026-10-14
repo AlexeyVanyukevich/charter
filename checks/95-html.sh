@@ -42,6 +42,10 @@ button.html|no-implicit-button-type text-content|button-name
 fragment.html|-|-
 page.html|-|-
 untitled.html|element-required-attributes element-required-content|document-title html-has-lang
+click-static.html|charter/clickable-control|-
+click-role.html|charter/clickable-control|-
+click-keys.html|charter/clickable-control|-
+click-controls.html|-|-
 ROWS
 cases="${cases%$'\n'}"
 
