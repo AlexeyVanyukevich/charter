@@ -6,7 +6,9 @@ is the whole onboarding path. Read it before changing behaviour.
 Every slice gets a design document, `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`, and
 an implementation plan, `docs/superpowers/plans/YYYY-MM-DD-<topic>.md`. Write and approve the
 spec before touching code. A slice is a change that leaves a design decision to make; a bounded
-change — one file, nothing left to decide — gets neither document.
+change — one file, nothing left to decide — gets neither document. **The spec of a slice that
+changes a user interface also states its accessibility:** focus order, each control's accessible
+name, heading structure, every state and how it is announced, and what an error does.
 
 Both are dated artefacts, and **neither is revised once the slice ships**:
 

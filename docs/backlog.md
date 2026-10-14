@@ -29,16 +29,6 @@ turning it on.
 - Impact: a consumer upgrades without knowing a check may fail, a plugin may be missing from a
   new workspace, or sessions started in a workspace still lack `core`
 
-## Accessibility is not part of a UI slice's spec
-
-- Where: the requirement template, which the requirements release adds
-- Found: 2026-10-14, deferred on purpose by `2026-10-13-frontend-design.md` §7
-- Priority: P3
-- Problem: the article the `frontend` domain came from asks a UI design to state focus order,
-  labels, heading structure, states and error behaviour before it is built. No rule reaches a
-  spec: specs live at the repository root, and `sync` prefixes a UI workspace's globs.
-- Impact: those decisions are made during implementation, by whoever writes the component
-
 ## A session started in a workspace has none of the root's plugins
 
 - Where: `bin/charter.mjs`, `init()`; `core/lib.sh`, `need_plugins`
