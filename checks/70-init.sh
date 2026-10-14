@@ -182,7 +182,7 @@ refuses() {
 refuses 'no command' 'Usage: charter init'
 refuses 'another command' 'Usage: charter init' build typescript
 refuses 'sync with arguments' 'no arguments' sync backend
-refuses 'an unknown module' 'backend, frontend, node, playwright, react, typescript, vitest' init mobile
+refuses 'an unknown module' 'backend, frontend, html, node, playwright, react, typescript, vitest' init mobile
 refuses 'node with react' 'cannot share a workspace' init node react
 SETUP='echo "{ \"workspaces\": { \".\": [\"node\"] } }" > charter.json' \
   refuses 'react beside a recorded node' 'cannot share a workspace' init react
