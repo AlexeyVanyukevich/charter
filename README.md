@@ -102,7 +102,7 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
 | `node` | stack | Node services | one rule, by path; the NodeNext tsconfig; a lint config |
 | `react` | stack | bundled browser applications | two rules, by path; the browser tsconfig; a lint config |
-| `html` | stack | hand-written HTML files | an html-validate config; `charter scan` |
+| `html` | stack | hand-written HTML files | an html-validate config and rule; `charter scan` |
 | `vitest` | stack | a Vitest suite | a lint config |
 | `playwright` | stack | a Playwright suite | one rule, by path; the `playwright` plugin |
 
@@ -348,8 +348,19 @@ and writes `.htmlvalidate.json`:
 
 The config extends html-validate's `standard` and `a11y` presets and turns on
 `input-missing-label`. It does not take `recommended`, whose style rules contradict Prettier
-— `doctype-style` wants `<!DOCTYPE html>`, Prettier writes `<!doctype html>`. Then, wherever the
-project runs its other checks:
+— `doctype-style` wants `<!DOCTYPE html>`, Prettier writes `<!doctype html>`.
+
+It also loads the stack's own rule, `charter/clickable-control`, from `stacks/html/plugin.mjs`
+next to it; the project's config needs nothing more. The rule looks at every element with an
+inline `onclick`, `onmousedown` or `onmouseup`, as `jsx-a11y` does in JSX. A native control
+passes — `<a href>`, `<button>`, `<input>`, `<select>`, `<textarea>`, `<summary>`, `<option>`.
+Any other element is reported when it has no `role`, and when it has one but no `tabindex` of 0
+or more, or no `onkeydown` or `onkeyup`. A `role` with a native element, as `button`, is also
+reported by html-validate's own `prefer-native-element`. One deliberate case is silenced in the
+markup, with `<!-- [html-validate-disable-next charter/clickable-control] -->`. The plugin takes
+html-validate from the project, as `charter scan` takes its tools below.
+
+Then, wherever the project runs its other checks:
 
 ```bash
 npx html-validate <dir>
@@ -365,8 +376,8 @@ jsdom are found the way Node finds any package, from the working directory upwar
 from beside the kit, which brings no dependencies.
 
 **A static scan is not a browser.** Colour contrast needs layout, so axe-core leaves it
-undecided, and a click handler on a `<div>` is caught by neither tool. The journeys' scans and
-keyboard runs in a real browser cover both.
+undecided, and a handler a script attaches with `addEventListener` is invisible to every static
+check. The journeys' scans and keyboard runs in a real browser cover both.
 
 ### The `./run` skeleton
 
