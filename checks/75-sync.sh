@@ -74,6 +74,9 @@ run >/dev/null || fail "sync failed after a rule left the kit"
 manifest '{ "workspaces": { "server": ["alpha"] } }'
 run >/dev/null || fail "sync failed after workspaces were dropped"
 [ ! -e "$out/apps" ] || fail "a dropped workspace left its directories behind"
+# server/api lies inside server, which stays: only its own directory goes.
+[ ! -e "$out/server/api" ] || fail "a dropped nested workspace left its mirror behind"
+[ -f "$out/server/alpha/a.md" ] || fail "dropping a nested workspace took its parent's rules with it"
 
 # ── nothing outside the mirror is touched ─────────────────────────────────────
 
