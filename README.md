@@ -153,7 +153,9 @@ and then adds what is missing, changing nothing that is set:
 It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is
 missing. It refuses to run away from the repository root (where `node_modules/charter` is), on
 an unknown module, on a workspace that is missing or outside the repository, on a workspace
-named `@root`, and on `node` and `react` in one workspace.
+named `@root`, and on `node` and `react` in one workspace. What `sync` would refuse in another
+workspace already recorded — its directory gone, a module the kit no longer has — `init` refuses
+too. Every refusal comes before anything is written.
 
 Commit `charter.json`, `CLAUDE.md`, `.claude/settings.json` and `.gitignore`. **Never commit
 `.claude/rules/charter/`:** it is a mirror that `sync` rebuilds at every session start. Start

@@ -78,18 +78,6 @@ turning it on.
   hook output.
 - Impact: every session start shows Node's stack-like error instead of "run npm install"
 
-## `init` writes before `sync` can refuse
-
-- Where: `bin/charter.mjs`, `init()`
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P4
-- Problem: `sync` refuses over another workspace already in `charter.json` (a missing
-  directory, an unknown module) or a malformed `plugins.json`, but only after `init` has written
-  `charter.json`, `CLAUDE.md`, `settings.json` and `.gitignore`; `need_hooks` then never runs.
-  Record a workspace, delete its directory, run `init` for another.
-- Impact: a refused `init` leaves partial changes and no commit-msg hook; each write is additive
-  and re-runnable, so rerunning after the fix completes it
-
 ## No test that a project's other hook events survive `init`'s merge
 
 - Where: `bin/charter.mjs`, `init()`; `checks/70-init.sh`

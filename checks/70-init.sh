@@ -196,6 +196,16 @@ SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.jso
 SETUP='mkdir .claude && echo "{ \"hooks\": [] }" > .claude/settings.json' \
   refuses 'hooks as an array' 'hooks' init typescript
 SETUP='echo "{" > charter.json' refuses 'broken charter.json' 'charter.json' init typescript
+# What sync would refuse — another workspace already recorded — init refuses before writing.
+SETUP='echo "{ \"workspaces\": { \"gone\": [\"node\"] } }" > charter.json' \
+  refuses 'a recorded workspace that is gone' 'not a directory' init typescript
+SETUP='mkdir other && echo "{ \"workspaces\": { \"other\": [\"mobile\"] } }" > charter.json' \
+  refuses 'an unknown module already recorded' 'mobile' init typescript
+broken="$tmp/broken-kit"
+mkdir -p "$broken"
+cp -R bin core domains stacks "$broken/"
+echo '[' > "$broken/stacks/react/plugins.json"
+cli="$broken/bin/charter.mjs" refuses 'a malformed plugins.json' 'plugins.json' init react
 
 # Run from a workspace instead of the root, init would write where no session reads. Without the
 # kit in node_modules here, it is not the root.
