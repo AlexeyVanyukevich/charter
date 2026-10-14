@@ -78,15 +78,6 @@ turning it on.
   hook output.
 - Impact: every session start shows Node's stack-like error instead of "run npm install"
 
-## `checks/75-sync.sh`'s read-only second-run proof is vacuous as root
-
-- Where: `checks/75-sync.sh`, the second run over a mirror made read-only with `a-w`
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P4
-- Problem: root ignores `a-w`. Run `./check 75` as root, as in a container CI, and `sync` can
-  write anywhere, so the "writes nothing" proof passes whatever `sync` does.
-- Impact: a regression that rewrites unchanged files goes unnoticed in such a CI
-
 ## `checks/75-sync.sh` does not assert that a dropped workspace's mirror is removed
 
 - Where: `checks/75-sync.sh`, the case that drops a workspace from `charter.json`
