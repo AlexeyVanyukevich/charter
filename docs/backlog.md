@@ -11,6 +11,18 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## `init` writes JSON that Prettier rejects
+
+- Where: `bin/charter.mjs`, `init`, the two `JSON.stringify(…, null, 2)` writes
+- Found: 2026-10-14, while adding `html` to a project already set up with three modules
+- Priority: P4
+- Problem: `JSON.stringify` puts every array element on its own line, and Prettier joins an
+  array that fits on one. In a project with `"."` set to `frontend typescript playwright`, run
+  `npx --no charter init html`, then `npx prettier --check charter.json`: it fails. The
+  project's `./run check` fails with it. `.claude/settings.json` goes through the same write.
+- Impact: every `init` that adds a module leaves the consuming project failing its own check
+  until someone runs `prettier --write`
+
 ## The 3.1.0 release left the README's install range at `^3.0.0`
 
 - Where: `README.md`, under Install; the `chore: release 3.1.0` commit
