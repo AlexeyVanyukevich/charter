@@ -11,24 +11,6 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
-## The next release's "Upgrading" section owes three notes
-
-- Where: the GitHub release of the next `chore: release` commit, its "Upgrading" section
-- Found: 2026-10-14 and 2026-10-15, while moving the plugins, adding `charter/clickable-control`
-  and giving workspaces their own sync hook
-- Priority: P3
-- Problem: three changes since 3.2.0 ask something of a consumer, and nothing in the release
-  steps prompts whoever writes the release to say so:
-  - `frontend-design` now comes from the `frontend` domain and `playwright` from the
-    `playwright` stack, not from `react`. A workspace onboarded before keeps both, since `init`
-    turns nothing off; one onboarded after, with `react` alone, gets neither.
-  - The `html` stack's config reports `charter/clickable-control`, so a project's markup check
-    can start failing on the upgrade.
-  - Each workspace gets its own sync hook and plugins only when `init` is rerun for it, and the
-    new `<workspace>/.claude/settings.json` has to be committed.
-- Impact: a consumer upgrades without knowing a check may fail, a plugin may be missing from a
-  new workspace, or sessions started in a workspace still lack `core`
-
 ## The sync hook has never run on Windows
 
 - Where: the `SessionStart` hooks `charter init` writes, at the root and in each workspace, a
