@@ -69,4 +69,5 @@ turning it on.
   `HEAD~1`, because it drops every commit of a multi-commit task but the last.
 - Impact: a review following the first leaves a multi-commit task's earlier commits unreviewed.
   Already raised upstream: issue obra/superpowers#2403, with the fix in pull request #2381, both
-  open on 2026-10-13. Delete this entry once a release carrying the fix is installed here.
+  still open on 2026-10-15. The installed 6.4.1 and the newest release, 7.0.0 of 2026-10-10,
+  both still carry line 28. Delete this entry once a release carrying the fix is installed here.
