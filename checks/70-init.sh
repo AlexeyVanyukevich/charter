@@ -149,7 +149,8 @@ mkdir -p "$p/apps/web"
   fail "init frontend typescript react vitest playwright --workspace apps/web failed"
 ui="$p/.claude/rules/charter/apps/web"
 grep -qx '  - "apps/web/src/\*\*"' "$ui/frontend/accessibility.md" &&
-  grep -qx '  - "apps/web/\*\*/\*.css"' "$ui/frontend/accessibility.md" ||
+  grep -qx '  - "apps/web/\*\*/\*.css"' "$ui/frontend/accessibility.md" &&
+  grep -qx '  - "apps/web/\*\*/\*.html"' "$ui/frontend/accessibility.md" ||
   fail "the frontend accessibility rule was not synced with the workspace's prefix"
 for rule in frontend/journeys.md playwright/journeys.md react/widgets.md; do
   [ -f "$ui/$rule" ] || fail "init did not sync $rule into a UI workspace"
