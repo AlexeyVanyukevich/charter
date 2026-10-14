@@ -179,7 +179,7 @@ Rules load in three tiers:
 - **Always** — `core`, through the one import in the root `CLAUDE.md`.
 - **By path** — every other module's rules. A rule loads once Claude reads a file that matches
   its `paths:`. `charter sync` delivers them.
-- **By task** — none yet. Skills arrive in 3.1.
+- **By task** — none yet. Skills arrive with the requirements release.
 
 `charter sync` takes no arguments and prints nothing on success. Its root is `CLAUDE_PROJECT_DIR`,
 which the hook sets, and otherwise the working directory. It reads `charter.json` and writes a
