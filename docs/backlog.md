@@ -78,15 +78,6 @@ turning it on.
   hook output.
 - Impact: every session start shows Node's stack-like error instead of "run npm install"
 
-## No test that a project's other hook events survive `init`'s merge
-
-- Where: `bin/charter.mjs`, `init()`; `checks/70-init.sh`
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P5
-- Problem: the code spreads `settings.hooks` to keep other events, but no case has a
-  project with, say, a `PreToolUse` hook and checks it after `init`.
-- Impact: a regression that drops a project's other hooks passes
-
 ## The sync hook has never run on Windows
 
 - Where: the `SessionStart` hook `charter init` writes, `node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync`

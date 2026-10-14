@@ -83,7 +83,8 @@ grep -qx '@node_modules/charter/core/rules.md' "$p/CLAUDE.md" || fail "init with
 p="$(project merge)"
 mkdir -p "$p/.claude"
 echo '{ "model": "opus", "enabledPlugins": { "playwright@claude-plugins-official": false },
-  "hooks": { "SessionStart": [ { "hooks": [ { "type": "command", "command": "echo own" } ] } ] } }' \
+  "hooks": { "SessionStart": [ { "hooks": [ { "type": "command", "command": "echo own" } ] } ],
+    "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "echo pre" } ] } ] } }' \
   > "$p/.claude/settings.json"
 printf '# Project' > "$p/CLAUDE.md"
 printf 'dist/' > "$p/.gitignore"
@@ -97,6 +98,9 @@ node -e '
   if (s.enabledPlugins["frontend-design@claude-plugins-official"] !== true) throw new Error("plugin not enabled")
   const commands = s.hooks.SessionStart.flatMap((e) => e.hooks.map((h) => h.command))
   if (commands.length !== 2 || commands[0] !== "echo own") throw new Error("own hook not kept first")
+  if (JSON.stringify(s.hooks.PreToolUse) !== JSON.stringify([{ matcher: "Bash", hooks: [{ type: "command", command: "echo pre" }] }])) {
+    throw new Error("another hook event was changed or dropped")
+  }
 ' "$p/.claude/settings.json" 2>/dev/null || fail "init changed or dropped something set in settings.json"
 [ "$(cat "$p/CLAUDE.md")" = $'# Project\n\n@node_modules/charter/core/rules.md' ] ||
   { echo "  ✗ the core import was not appended after one blank line:"; cat "$p/CLAUDE.md"; exit 1; }
