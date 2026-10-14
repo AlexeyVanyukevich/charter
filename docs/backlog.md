@@ -78,15 +78,6 @@ turning it on.
   hook output.
 - Impact: every session start shows Node's stack-like error instead of "run npm install"
 
-## `need_hooks` leaves a matching wrapper without its executable bit
-
-- Where: `core/lib.sh`, `need_hooks`
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P4
-- Problem: when the commit-msg hook already holds the current wrapper text, it is left as is,
-  even if its executable bit is gone. `chmod -x .git/hooks/commit-msg`, run `need_hooks`, commit.
-- Impact: git skips a non-executable hook silently, so commits go unchecked
-
 ## `checks/75-sync.sh`'s read-only second-run proof is vacuous as root
 
 - Where: `checks/75-sync.sh`, the second run over a mirror made read-only with `a-w`

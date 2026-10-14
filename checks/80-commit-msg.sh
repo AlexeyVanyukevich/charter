@@ -89,6 +89,12 @@ out="$(cd "$repo" && source "$lib" && need_hooks)" || fail "a second need_hooks 
 [ -z "$out" ] || fail "a second need_hooks printed '$out'"
 cmp -s "$installed" "$tmp/hook.before" || fail "a second need_hooks rewrote the hook"
 
+# git skips a hook that is not executable without a word, so the current wrapper without its bit
+# gets it back.
+chmod -x "$installed"
+( cd "$repo" && source "$lib" && need_hooks ) >/dev/null || fail "need_hooks failed beside a non-executable wrapper"
+[ -x "$installed" ] || fail "need_hooks left the current wrapper without its executable bit"
+
 # A project's own hook is never replaced; the developer is told the kit's is not installed.
 repo="$tmp/foreign"
 git init -q "$repo"

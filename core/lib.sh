@@ -178,7 +178,8 @@ HOOK
       note "To enforce the commit rule, call node_modules/charter/core/hooks/commit-msg \"\$1\" from it."
       return 0
     fi
-    [ "$(cat "$hooks/commit-msg")" = "${wrapper%$'\n'}" ] && return 0
+    # git skips a hook without its executable bit, silently, so the current text alone is not enough.
+    [ "$(cat "$hooks/commit-msg")" = "${wrapper%$'\n'}" ] && [ -x "$hooks/commit-msg" ] && return 0
   fi
   mkdir -p "$hooks"
   printf '%s' "$wrapper" > "$hooks/commit-msg"
