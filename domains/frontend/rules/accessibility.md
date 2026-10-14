@@ -2,6 +2,7 @@
 paths:
   - "src/**"
   - "**/*.css"
+  - "**/*.html"
 ---
 # Accessibility
 
