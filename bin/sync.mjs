@@ -77,8 +77,9 @@ function parseRule(text, name) {
   return { patterns, body: text.slice(offset) }
 }
 
-export function plan(root, kit) {
-  const manifest = readManifest(root)
+// init passes the manifest it is about to write, so that whatever sync would refuse is refused
+// before init writes anything.
+export function plan(root, kit, manifest = readManifest(root)) {
   const modules = findModules(kit)
   const wanted = new Map()
   for (const [key, names] of Object.entries(manifest.workspaces)) {

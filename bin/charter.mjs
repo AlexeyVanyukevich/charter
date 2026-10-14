@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { KitError, findModules } from './modules.mjs'
 import { scan } from './scan.mjs'
-import { manifestFile, normalizeWorkspace, readManifest, sync } from './sync.mjs'
+import { manifestFile, normalizeWorkspace, plan, readManifest, sync } from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const usage =
@@ -115,7 +115,20 @@ function readSettings() {
 
 function pluginsOf(name, modules) {
   const file = join(kit, modules.get(name), 'plugins.json')
-  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : []
+  if (!existsSync(file)) return []
+  let plugins
+  try {
+    plugins = JSON.parse(readFileSync(file, 'utf8'))
+  } catch {
+    plugins = undefined
+  }
+  if (!Array.isArray(plugins) || plugins.some((id) => typeof id !== 'string')) {
+    throw new KitError(
+      `${modules.get(name)}/plugins.json in the kit is not a list of plugin ids.`,
+      'Reinstall the kit: npm install.',
+    )
+  }
+  return plugins
 }
 
 // Appends `line` after one blank line, unless a line already reads one of `same`.
@@ -142,6 +155,11 @@ function init({ names, workspace }) {
       'Their TypeScript rules contradict each other. Give each its own: charter init <module…> --workspace <dir>.',
     )
   }
+  // sync runs after the writes below, so what it would refuse — another recorded workspace that
+  // is gone, a module the kit no longer has — is refused here, before them.
+  const next = { ...manifest, workspaces: { ...manifest.workspaces, [recorded]: merged } }
+  guard(() => plan(process.cwd(), kit, next))
+  const plugins = guard(() => [...new Set(merged.flatMap((name) => pluginsOf(name, modules)))])
 
   // Nothing has been written up to here.
   if (!(recorded in manifest.workspaces) || merged.length > current.length) {
@@ -153,7 +171,6 @@ function init({ names, workspace }) {
   }
 
   const enabled = settings.enabledPlugins ?? {}
-  const plugins = [...new Set(merged.flatMap((name) => pluginsOf(name, modules)))]
   const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
   const sessionStart = settings.hooks?.SessionStart ?? []
   const hooked = sessionStart.some(
