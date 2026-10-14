@@ -11,6 +11,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
@@ -140,7 +141,30 @@ function appendLine(file, line, same = [line]) {
   return true
 }
 
-function init({ names, workspace }) {
+// JSON.stringify puts every array element on its own line, and Prettier joins an array that fits
+// on one, so a project that checks its formatting would fail on what init writes. The project's
+// own Prettier, when it has one, formats it instead, under the project's config. The config is
+// read here, before anything is written.
+async function jsonWriter() {
+  let prettier
+  try {
+    prettier = createRequire(join(process.cwd(), 'package.json'))('prettier')
+  } catch {
+    return async (file, value) => writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`)
+  }
+  const options = new Map()
+  for (const file of [manifestFile, settingsFile]) {
+    try {
+      options.set(file, await prettier.resolveConfig(resolve(file)))
+    } catch (error) {
+      fail(`Prettier could not read this project's config: ${error.message}`, 'Fix it, then run this again.')
+    }
+  }
+  return async (file, value) =>
+    writeFileSync(file, await prettier.format(JSON.stringify(value, null, 2), { ...options.get(file), filepath: file }))
+}
+
+async function init({ names, workspace }) {
   const modules = guard(() => findModules(kit))
   const key = check(names, workspace, modules)
   const settings = readSettings()
@@ -160,11 +184,12 @@ function init({ names, workspace }) {
   const next = { ...manifest, workspaces: { ...manifest.workspaces, [recorded]: merged } }
   guard(() => plan(process.cwd(), kit, next))
   const plugins = guard(() => [...new Set(merged.flatMap((name) => pluginsOf(name, modules)))])
+  const writeJson = await jsonWriter()
 
   // Nothing has been written up to here.
   if (!(recorded in manifest.workspaces) || merged.length > current.length) {
     manifest.workspaces[recorded] = merged
-    writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`)
+    await writeJson(manifestFile, manifest)
     console.log(`✓ ${manifestFile}: ${recorded} — ${merged.length > 0 ? merged.join(', ') : 'core only'}`)
   } else {
     console.log(`  ${manifestFile} already has ${recorded} with these modules`)
@@ -187,7 +212,7 @@ function init({ names, workspace }) {
   }
   if (newPlugins.length > 0 || !hooked) {
     mkdirSync('.claude', { recursive: true })
-    writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`)
+    await writeJson(settingsFile, settings)
   }
   for (const id of plugins) console.log(newPlugins.includes(id) ? `✓ enabled ${id}` : `  ${id} already set`)
   console.log(hooked ? '  the sync hook is already set' : `✓ ${settingsFile}: SessionStart runs charter sync`)
@@ -231,4 +256,4 @@ if (options.command === 'scan') {
   }
   process.exit(failed > 0 ? 1 : 0)
 }
-init(options)
+await init(options)
