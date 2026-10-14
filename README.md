@@ -406,7 +406,8 @@ lacks for the repository, registering the official marketplace first on a machin
 Code has never run. With nothing missing it prints nothing. Without Claude Code — CI — it notes
 the skip and returns zero.
 
-`need_hooks` installs the commit-msg hook, above, when it is missing or an older kit's.
+`need_hooks` installs the commit-msg hook, above, when it is missing, an older kit's, or no
+longer executable.
 Outside a git repository, or beside a project's own hook, it changes nothing and returns zero;
 with the hook in place it prints nothing.
 
