@@ -141,6 +141,20 @@ grep -qx '  - "server/src/modules/\*\*"' "$p/.claude/rules/charter/server/backen
 grep -q 'playwright@claude-plugins-official' "$p/.claude/settings.json" ||
   fail "a workspace's plugins did not land in the root settings.json"
 
+# A UI workspace: a domain and four stacks, two of which ship a rule named journeys.md. The mirror
+# keeps them apart by module directory.
+p="$(project ui)"
+mkdir -p "$p/apps/web"
+( cd "$p" && node "$cli" init frontend typescript react vitest playwright --workspace apps/web ) >/dev/null ||
+  fail "init frontend typescript react vitest playwright --workspace apps/web failed"
+ui="$p/.claude/rules/charter/apps/web"
+grep -qx '  - "apps/web/src/\*\*"' "$ui/frontend/accessibility.md" &&
+  grep -qx '  - "apps/web/\*\*/\*.css"' "$ui/frontend/accessibility.md" ||
+  fail "the frontend accessibility rule was not synced with the workspace's prefix"
+for rule in frontend/journeys.md playwright/journeys.md react/widgets.md; do
+  [ -f "$ui/$rule" ] || fail "init did not sync $rule into a UI workspace"
+done
+
 # ── the commit-msg hook ───────────────────────────────────────────────────────
 
 # core carries the commit rule and every project loads core, so every init installs the hook.
@@ -167,7 +181,7 @@ refuses() {
 refuses 'no command' 'Usage: charter init'
 refuses 'another command' 'Usage: charter init' build typescript
 refuses 'sync with arguments' 'no arguments' sync backend
-refuses 'an unknown module' 'backend, node, react, typescript, vitest' init frontend
+refuses 'an unknown module' 'backend, frontend, node, playwright, react, typescript, vitest' init mobile
 refuses 'node with react' 'cannot share a workspace' init node react
 SETUP='echo "{ \"workspaces\": { \".\": [\"node\"] } }" > charter.json' \
   refuses 'react beside a recorded node' 'cannot share a workspace' init react
