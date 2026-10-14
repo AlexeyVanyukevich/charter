@@ -11,6 +11,18 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## The next release must say that `react` no longer brings plugins
+
+- Where: the GitHub release of the next `chore: release` commit, its "Upgrading" section
+- Found: 2026-10-14, while moving the plugins to `frontend` and `playwright`
+- Priority: P3
+- Problem: `frontend-design` now comes from the `frontend` domain and `playwright` from the
+  `playwright` stack. A workspace taking `react` without them, onboarded after the upgrade, gets
+  neither plugin; one onboarded before keeps both, since `init` turns nothing off. Nothing in
+  the release steps prompts whoever writes the release to say so.
+- Impact: a consumer that relied on `react` for the plugins loses them in a new workspace
+  without being told
+
 ## Nothing static catches a click handler on a non-interactive element in HTML
 
 - Where: `stacks/html/htmlvalidate.json`; `bin/scan.mjs`
@@ -31,17 +43,6 @@ turning it on.
   labels, heading structure, states and error behaviour before it is built. No rule reaches a
   spec: specs live at the repository root, and `sync` prefixes a UI workspace's globs.
 - Impact: those decisions are made during implementation, by whoever writes the component
-
-## The `frontend-design` and `playwright` plugins still come from `react`
-
-- Where: `stacks/react/plugins.json`
-- Found: 2026-10-14, deferred on purpose by `2026-10-13-frontend-design.md` §7
-- Priority: P5
-- Problem: neither plugin is React's. `frontend-design` belongs to the `frontend` domain and the
-  `playwright` plugin to the `playwright` stack, which now exists. A Vue workspace taking
-  `frontend` and `playwright` would get neither.
-- Impact: moving them changes what an existing `react` workspace gets from its next `init`, so
-  it needs its own release note
 
 ## A session started in a workspace runs no sync and may read no `core`
 

@@ -119,7 +119,7 @@ printf '# Project' > "$p/CLAUDE.md"
 printf 'dist/' > "$p/.gitignore"
 echo '{ "workspaces": { ".": ["typescript"] }, "note": "kept" }' > "$p/charter.json"
 : > "$CLAUDE_LOG"
-( cd "$p" && node "$cli" init react vitest ) >/dev/null || fail "init into an existing project failed"
+( cd "$p" && node "$cli" init frontend playwright vitest ) >/dev/null || fail "init into an existing project failed"
 node -e '
   const s = require(process.argv[1])
   if (s.model !== "opus") throw new Error("model was dropped")
@@ -137,7 +137,7 @@ node -e '
   { echo "  ✗ the .gitignore line was not appended after one blank line:"; cat "$p/.gitignore"; exit 1; }
 node -e '
   const m = require(process.argv[1])
-  if (m.note !== "kept" || m.workspaces["."].join() !== "typescript,react,vitest") throw new Error()
+  if (m.note !== "kept" || m.workspaces["."].join() !== "typescript,frontend,playwright,vitest") throw new Error()
 ' "$p/charter.json" 2>/dev/null || fail "init did not append to the workspace's modules, keeping the rest"
 grep -qx 'plugin install frontend-design@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
   fail "init did not run need_plugins"
@@ -154,17 +154,33 @@ p="$(project twice)"
 [ "$(node -p 'require(process.argv[1]).workspaces["."].join()' "$p/charter.json")" = node ] ||
   fail "a repeated module was recorded twice"
 
+# Each plugin comes from the module it belongs to: frontend-design from the frontend domain,
+# playwright from the playwright stack. react brings none, so a Vue workspace taking frontend
+# and playwright gets both.
+while IFS='|' read -r modules want; do
+  p="$(project "plugins-${modules// /-}")"
+  # shellcheck disable=SC2086
+  ( cd "$p" && node "$cli" init $modules ) >/dev/null || fail "init $modules failed"
+  got="$(node -p 'Object.keys(require(process.argv[1]).enabledPlugins ?? {}).sort().join(" ") || "-"' "$p/.claude/settings.json")"
+  [ "$got" = "$want" ] || fail "init $modules enabled '$got'; expected '$want'"
+done <<'ROWS'
+react|-
+frontend|frontend-design@claude-plugins-official
+playwright|playwright@claude-plugins-official
+frontend typescript react vitest playwright|frontend-design@claude-plugins-official playwright@claude-plugins-official
+ROWS
+
 # ── workspaces ────────────────────────────────────────────────────────────────
 
 p="$(project split)"
 mkdir -p "$p/server" "$p/apps/web"
 ( cd "$p" && node "$cli" init backend typescript node --workspace server ) >/dev/null ||
   fail "init --workspace server failed"
-( cd "$p" && node "$cli" init typescript react --workspace apps/web/ ) >/dev/null ||
+( cd "$p" && node "$cli" init typescript react playwright --workspace apps/web/ ) >/dev/null ||
   fail "init --workspace apps/web/ failed"
 node -e '
   const w = require(process.argv[1]).workspaces
-  if (w.server.join() !== "backend,typescript,node" || w["apps/web"].join() !== "typescript,react") throw new Error()
+  if (w.server.join() !== "backend,typescript,node" || w["apps/web"].join() !== "typescript,react,playwright") throw new Error()
 ' "$p/charter.json" 2>/dev/null || fail "workspaces are not recorded by their path from the root"
 grep -qx '  - "server/src/modules/\*\*"' "$p/.claude/rules/charter/server/backend/http.md" ||
   fail "a workspace's rules were not synced with its prefix"
