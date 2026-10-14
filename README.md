@@ -151,9 +151,12 @@ and then adds what is missing, changing nothing that is set:
 - `.claude/rules/charter/` in `.gitignore`.
 
 It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is
-missing. It refuses to run away from the repository root (where `node_modules/charter` is), on
-an unknown module, on a workspace that is missing or outside the repository, on a workspace
-named `@root`, and on `node` and `react` in one workspace. What `sync` would refuse in another
+missing. In a project with Prettier installed, the JSON it writes is formatted by that Prettier
+under the project's config, so the project's own format check passes.
+
+It refuses to run away from the repository root (where `node_modules/charter` is), on an
+unknown module, on a workspace that is missing or outside the repository, on a workspace named
+`@root`, and on `node` and `react` in one workspace. What `sync` would refuse in another
 workspace already recorded — its directory gone, a module the kit no longer has — `init` refuses
 too. Every refusal comes before anything is written.
 

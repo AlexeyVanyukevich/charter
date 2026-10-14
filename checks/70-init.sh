@@ -236,5 +236,24 @@ grep -q 'bash' <<< "$err" || fail "init without bash did not name bash: got '$er
 err="$(tests/fixture/node_modules/.bin/charter 2>&1 >/dev/null)" && fail "charter with no arguments succeeded"
 grep -q 'Usage: charter init' <<< "$err" || fail "a consumer's charter does not print its usage"
 
+# ── formatted by the project's Prettier ───────────────────────────────────────
+
+# JSON.stringify puts every array element on its own line, and Prettier joins an array that fits
+# on one. A project with Prettier and the kit's config gets JSON its own format check accepts,
+# after a first init and after one that adds a module. The fixture installed Prettier above.
+p="$(project prettier)"
+rmdir "$p/node_modules/charter"
+ln -s "$PWD" "$p/node_modules/charter"
+ln -s "$PWD/tests/fixture/node_modules/prettier" "$p/node_modules/prettier"
+echo '{ "prettier": "charter/stacks/typescript/prettier" }' > "$p/package.json"
+prettier_check() { (cd "$p" && node node_modules/prettier/bin/prettier.cjs --check charter.json .claude/settings.json); }
+( cd "$p" && node "$cli" init frontend typescript playwright ) >/dev/null || fail "init with Prettier installed failed"
+prettier_check >/dev/null 2>&1 || { echo "  ✗ a first init wrote JSON the project's Prettier rejects:"; prettier_check; exit 1; }
+( cd "$p" && node "$cli" init html react ) >/dev/null || fail "init adding modules with Prettier installed failed"
+prettier_check >/dev/null 2>&1 || { echo "  ✗ an init adding modules wrote JSON the project's Prettier rejects:"; prettier_check; exit 1; }
+grep -qF '".": ["frontend", "typescript", "playwright", "html", "react"]' "$p/charter.json" ||
+  { echo "  ✗ the modules were not joined on one line:"; cat "$p/charter.json"; exit 1; }
+
 echo "  ✓ init records modules, imports core, wires the sync hook and the ignore line, merges"
-echo "    without overwriting, syncs each workspace, refuses cleanly, and reaches a consumer"
+echo "    without overwriting, syncs each workspace, refuses cleanly, reaches a consumer, and"
+echo "    writes JSON the project's Prettier accepts"
