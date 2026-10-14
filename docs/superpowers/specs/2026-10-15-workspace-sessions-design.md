@@ -1,6 +1,6 @@
 # charter — sessions started in a workspace
 
-Status: **proposed**, 2026-10-15.
+Status: **built**, 2026-10-15.
 
 > **This is a decision record, not a description of the system.**
 >

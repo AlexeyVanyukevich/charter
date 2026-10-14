@@ -144,13 +144,16 @@ npx --no charter init frontend typescript react vitest playwright --workspace we
 and then adds what is missing, changing nothing that is set:
 
 - `@node_modules/charter/core/rules.md` in the root `CLAUDE.md`. A workspace needs no
-  `CLAUDE.md` import of its own: rules are scoped by path, for a session started at the root.
+  `CLAUDE.md` import of its own: rules are scoped by path.
 - in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync` — or, on a clone
   where `npm install` has not run yet, fails saying to run it. The hook an older kit wrote is
   rewritten where it stands. Then the plugins of the named modules, which are listed in a
   module's `plugins.json`: `frontend` brings `frontend-design`, and `playwright` the
   `playwright` plugin. A plugin set to `false` stays off. Up to 3.2, `react` brought both;
   `init` turns nothing off, so a workspace onboarded then keeps them.
+- for `--workspace <dir>`, the same hook in `<dir>/.claude/settings.json`, reaching the root's
+  kit through one `..` per level — `../..` for `apps/web`. A session started in the workspace
+  reads that file, never the root's.
 - `.claude/rules/charter/` in `.gitignore`.
 
 It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is
@@ -163,11 +166,17 @@ unknown module, on a workspace that is missing or outside the repository, on a w
 workspace already recorded — its directory gone, a module the kit no longer has — `init` refuses
 too. Every refusal comes before anything is written.
 
-Commit `charter.json`, `CLAUDE.md`, `.claude/settings.json` and `.gitignore`. **Never commit
-`.claude/rules/charter/`:** it is a mirror that `sync` rebuilds at every session start. Start
-sessions at the repository root, not in a workspace: a session started in a workspace runs no
-sync hook and may not read `core`. Rules are scoped by path, so one root session can work on
-every workspace without loading the others' rules.
+Commit `charter.json`, `CLAUDE.md`, `.gitignore`, and every `.claude/settings.json` it wrote —
+the root's and each workspace's. **Never commit `.claude/rules/charter/`:** it is a mirror that
+`sync` rebuilds at every session start.
+
+A session started in a recorded workspace reads what one started at the root reads: its own hook
+syncs the root's mirror, whose rules load from there too, and prints `core`, which the root
+`CLAUDE.md`'s import does not reach from a workspace. The root is still the better place to
+start: the plugins are turned on in the root's settings only, and rules are scoped by path, so
+one root session can work on every workspace without loading the others' rules. A directory that
+is not a recorded workspace, as `server/src`, has no hook: a session started there gets neither
+`core` nor a fresh mirror.
 
 **A committed plugin is turned on, not downloaded.** Each clone installs it once:
 `need_plugins`, in the `./run` frame below, does that.
@@ -176,13 +185,17 @@ every workspace without loading the others' rules.
 
 Rules load in three tiers:
 
-- **Always** — `core`, through the one import in the root `CLAUDE.md`.
+- **Always** — `core`, through the one import in the root `CLAUDE.md`; in a session started in
+  a workspace, through the workspace's sync hook.
 - **By path** — every other module's rules. A rule loads once Claude reads a file that matches
   its `paths:`. `charter sync` delivers them.
 - **By task** — none yet. Skills arrive with the requirements release.
 
-`charter sync` takes no arguments and prints nothing on success. Its root is `CLAUDE_PROJECT_DIR`,
-which the hook sets, and otherwise the working directory. It reads `charter.json` and writes a
+`charter sync` takes no arguments. Its root is the nearest directory holding `charter.json`,
+looking upwards from `CLAUDE_PROJECT_DIR`, which a hook sets, or else from the working directory.
+At the root, and by hand, it prints nothing on success. Run by a workspace's hook, it prints
+`core`'s rules, in `core/rules.md`'s order, after one line naming the workspace: a hook's output
+is what the session reads. It reads `charter.json` and writes a
 mirror at `.claude/rules/charter/<workspace>/<module>/<rule>.md`, with the root workspace as
 `@root`. It prefixes each pattern with the workspace's path — for the workspace `server`,
 `src/modules/**` becomes `server/src/modules/**` — and copies the rest of the rule unchanged.
