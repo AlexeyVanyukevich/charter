@@ -78,15 +78,6 @@ turning it on.
   hook output.
 - Impact: every session start shows Node's stack-like error instead of "run npm install"
 
-## `checks/75-sync.sh` does not assert that a dropped workspace's mirror is removed
-
-- Where: `checks/75-sync.sh`, the case that drops a workspace from `charter.json`
-- Found: 2026-10-13, in the final review of 3.0
-- Priority: P5
-- Problem: `server/api`'s mirror directory is not asserted gone after its workspace is dropped,
-  only the other pruned paths are.
-- Impact: a regression that leaves a nested workspace's mirror behind passes
-
 ## `sync` writes and prunes through symlinks
 
 - Where: `bin/charter.mjs`, `sync()`
