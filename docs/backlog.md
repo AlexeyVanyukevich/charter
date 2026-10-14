@@ -11,17 +11,23 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
-## The next release must say that `react` no longer brings plugins
+## The next release's "Upgrading" section owes three notes
 
 - Where: the GitHub release of the next `chore: release` commit, its "Upgrading" section
-- Found: 2026-10-14, while moving the plugins to `frontend` and `playwright`
+- Found: 2026-10-14 and 2026-10-15, while moving the plugins, adding `charter/clickable-control`
+  and giving workspaces their own sync hook
 - Priority: P3
-- Problem: `frontend-design` now comes from the `frontend` domain and `playwright` from the
-  `playwright` stack. A workspace taking `react` without them, onboarded after the upgrade, gets
-  neither plugin; one onboarded before keeps both, since `init` turns nothing off. Nothing in
-  the release steps prompts whoever writes the release to say so.
-- Impact: a consumer that relied on `react` for the plugins loses them in a new workspace
-  without being told
+- Problem: three changes since 3.2.0 ask something of a consumer, and nothing in the release
+  steps prompts whoever writes the release to say so:
+  - `frontend-design` now comes from the `frontend` domain and `playwright` from the
+    `playwright` stack, not from `react`. A workspace onboarded before keeps both, since `init`
+    turns nothing off; one onboarded after, with `react` alone, gets neither.
+  - The `html` stack's config reports `charter/clickable-control`, so a project's markup check
+    can start failing on the upgrade.
+  - Each workspace gets its own sync hook only when `init` is rerun for it, and the new
+    `<workspace>/.claude/settings.json` has to be committed.
+- Impact: a consumer upgrades without knowing a check may fail, a plugin may be missing from a
+  new workspace, or sessions started in a workspace still lack `core`
 
 ## Accessibility is not part of a UI slice's spec
 
@@ -33,23 +39,25 @@ turning it on.
   spec: specs live at the repository root, and `sync` prefixes a UI workspace's globs.
 - Impact: those decisions are made during implementation, by whoever writes the component
 
-## A session started in a workspace runs no sync and may read no `core`
+## A session started in a workspace has none of the root's plugins
 
-- Where: `README.md` "Onboarding a project"; `checks/40-rules.sh`
-- Found: 2026-10-13, in the final review of 3.0, with live sessions
-- Priority: P2
-- Problem: a session started in a subdirectory does not fire the root `.claude/settings.json`
-  `SessionStart` hook, and in `-p` mode does not load the root `CLAUDE.md`'s `core` import.
-  Start `claude` in `server/` of an onboarded repository and look for the always-on rules. The
-  README now says to start at the root; nothing enforces it, and the live session in
-  `checks/40-rules.sh` covers only a root session.
-- Impact: a session started in a workspace silently has no synced path rules and may have no
-  `core`
+- Where: `bin/charter.mjs`, `init()`; `core/lib.sh`, `need_plugins`
+- Found: 2026-10-15, while giving workspaces their own sync hook
+- Priority: P4
+- Problem: `init` turns plugins on in the root's `.claude/settings.json` only, and
+  `need_plugins` installs each at project scope for the root's path. A session started in
+  `server/` reads `server/.claude/settings.json` and is a project of its own, so the plugins of
+  its modules should be off there. Not yet observed: inferred from where the settings and the
+  installs live. Onboard a UI workspace, start `claude` in it, and run `/plugin` to see.
+- Impact: a UI session started in its workspace works without `frontend-design` and
+  `playwright`
 
 ## The sync hook has never run on Windows
 
-- Where: the `SessionStart` hook `charter init` writes, a POSIX shell line around
-  `node "$f" sync` with `f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"`
+- Where: the `SessionStart` hooks `charter init` writes, at the root and in each workspace, a
+  POSIX shell line around `node "$f" sync` with
+  `f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"` (`$CLAUDE_PROJECT_DIR/../…` in a
+  workspace)
 - Found: 2026-10-13, while designing 3.0
 - Priority: P2 — some consuming projects are developed on Windows
 - Problem: the command relies on a POSIX shell — `"$CLAUDE_PROJECT_DIR"` expanded, `if [ -f … ]`
