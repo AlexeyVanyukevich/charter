@@ -11,6 +11,19 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## The `frontend` domain never reaches a project's HTML
+
+- Where: `domains/frontend/rules/accessibility.md`, its `paths:`; the stacks' `oxlint.json`
+- Found: 2026-10-14, while designing a component kit that ships CSS and reference HTML only
+- Priority: P3
+- Problem: the rule loads on `src/**` and `**/*.css`, so a session editing an `.html` file
+  outside `src/` does not load it. Its element-level half is left to lint, and only `react`
+  brings one (`jsx-a11y`): a workspace taking `frontend typescript playwright` has nothing that
+  reads HTML. Put `aria-selected="maybe"` in such a workspace's `contract/tabs.html` and run
+  `./run check`: it passes, and `.claude/rules/charter/` holds no rule matching the file.
+- Impact: in a project whose product is markup, that markup is checked only by the axe scans of
+  the states a journey happens to reach
+
 ## `./check 40` counts a module that does not exist as zero lines
 
 - Where: `checks/40-rules.sh`, `worst()`
