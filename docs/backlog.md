@@ -11,6 +11,17 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## The 3.1.0 release left the README's install range at `^3.0.0`
+
+- Where: `README.md`, under Install; the `chore: release 3.1.0` commit
+- Found: 2026-10-14, while adding the `html` stack
+- Priority: P2 — `main` does not pass `./check`
+- Problem: the release commit changed `"version"` in `package.json` and not the range the
+  Releasing section says moves with it. Run `./check 60` on `main`: "the README installs
+  ^3.0.0; package.json is at 3.1.0".
+- Impact: `./check` stops at 60, so the checks after it go unrun by anyone running the whole
+  suite; a caret range still installs 3.1.0, so no consumer is affected yet
+
 ## Nothing static catches a click handler on a non-interactive element in HTML
 
 - Where: `stacks/html/htmlvalidate.json`; `bin/scan.mjs`
