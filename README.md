@@ -98,13 +98,13 @@ repository's git config, git sends it ahead of any credential helper, and GitHub
 | ------ | ---- | --- | ------ |
 | `core` | — | every project | six rules, loaded always; the commit-msg hook; `lib.sh`; ignore files |
 | `backend` | domain | HTTP services | three rules, by path |
-| `frontend` | domain | web interfaces | two rules, by path |
+| `frontend` | domain | web interfaces | two rules, by path; the `frontend-design` plugin |
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
 | `node` | stack | Node services | one rule, by path; the NodeNext tsconfig; a lint config |
-| `react` | stack | bundled browser applications | two rules, by path; the browser tsconfig; a lint config; the `frontend-design` and `playwright` plugins |
+| `react` | stack | bundled browser applications | two rules, by path; the browser tsconfig; a lint config |
 | `html` | stack | hand-written HTML files | an html-validate config; `charter scan` |
 | `vitest` | stack | a Vitest suite | a lint config |
-| `playwright` | stack | a Playwright suite | one rule, by path |
+| `playwright` | stack | a Playwright suite | one rule, by path; the `playwright` plugin |
 
 `core` needs no naming: every project has it. A workspace takes a domain and its stacks — a
 Node service writes `backend`, `typescript`, `node` and `vitest`; a React application writes
@@ -148,8 +148,9 @@ and then adds what is missing, changing nothing that is set:
 - in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync` — or, on a clone
   where `npm install` has not run yet, fails saying to run it. The hook an older kit wrote is
   rewritten where it stands. Then the plugins of the named modules, which are listed in a
-  module's `plugins.json`. Only `react` has one: `frontend-design` and `playwright`. A plugin
-  set to `false` stays off.
+  module's `plugins.json`: `frontend` brings `frontend-design`, and `playwright` the
+  `playwright` plugin. A plugin set to `false` stays off. Up to 3.2, `react` brought both;
+  `init` turns nothing off, so a workspace onboarded then keeps them.
 - `.claude/rules/charter/` in `.gitignore`.
 
 It then runs `sync`, `need_plugins` and `need_hooks`. Running it again adds only what is
