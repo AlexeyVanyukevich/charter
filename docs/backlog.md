@@ -11,6 +11,22 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## `./check 40` proves rule loading only for Claude Code running Claude
+
+- Where: `checks/40-rules.sh`, the live session check, which calls `claude -p` on the CLI's
+  default model
+- Found: 2026-10-19, while asking whether the kit could serve other models
+- Priority: P5 — no consuming project uses another model or tool yet
+- Problem: the rule text is tool-neutral, but every proof that a session follows it comes from
+  Claude Code on a Claude model. Another model behind Claude Code — GLM or Qwen through an
+  Anthropic-compatible endpoint, set by `ANTHROPIC_BASE_URL` and `ANTHROPIC_MODEL` — loads the
+  same files, and nothing measures whether it obeys them. Another tool — Codex, Cursor, Copilot,
+  Qwen Code — reads neither `CLAUDE.md`'s import, nor `.claude/rules/`, nor the `SessionStart`
+  hook, and gets no rule at all.
+- Impact: another model may ignore the rules with nothing failing; another tool gets none. Start
+  by running the session check against the new model, and add a writer to `sync` only for a tool
+  that cannot read the files the kit already writes.
+
 ## `./check 40`'s workspace session answered wrongly once in 24
 
 - Where: `checks/40-rules.sh`, the live session started in `server/`
