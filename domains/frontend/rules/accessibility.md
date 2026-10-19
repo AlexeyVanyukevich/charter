@@ -19,7 +19,7 @@ Its markup, styling and API are the project's own. `<dialog>` with `showModal()`
 and `popover` are the platform's; tabs, menus, comboboxes and listboxes are the library's. A
 hand-rolled one passes lint and fails at the keyboard.
 
-**An application uses the component kit its `CLAUDE.md` names.** A widget the kit has is
+**An application uses the component kit its agent instructions name.** A widget the kit has is
 never rewritten in the application; one it lacks is added to the kit.
 
 **State lives on the element, not only in the styling.** Open, selected, pressed, current,
