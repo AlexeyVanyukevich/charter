@@ -40,20 +40,24 @@ turning it on.
 - Impact: a full `./check` can fail with nothing to blame; if the rule did not load, a session
   started in a workspace sometimes works without its path rules
 
-## The sync hook has never run on Windows
+## The sync hook does not run on Windows without Git Bash
 
 - Where: the `SessionStart` hooks `charter init` writes, at the root and in each workspace, a
   POSIX shell line around `node "$f" sync` with
   `f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"` (`$CLAUDE_PROJECT_DIR/../…` in a
   workspace)
-- Found: 2026-10-13, while designing 3.0
+- Found: 2026-10-13, while designing 3.0; narrowed 2026-10-20 by running it on Windows 11 with
+  Claude Code 2.1.251
 - Priority: P2 — some consuming projects are developed on Windows
-- Problem: the command relies on a POSIX shell — `"$CLAUDE_PROJECT_DIR"` expanded, `if [ -f … ]`
-  understood — which depends on the shell Claude Code runs hooks through on Windows. Nothing
-  here has run it there. Start a session on a Windows checkout and look for
-  `.claude/rules/charter/`.
-- Impact: if the variable is not expanded, `sync` never runs on that machine and no path rule
-  loads there — silently, since the hook's error is shown to the person, not the model.
+- Problem: with Git Bash installed, the hook works at the root and in a workspace, and its
+  missing-kit message reaches the session. Without Git Bash, Claude Code runs a hook with no
+  `shell` field through PowerShell, where the line is a parse error at `if [ -f …`. Run the
+  hook's command with `powershell.exe -Command` to see it.
+- Impact: on a Windows machine without Git Bash, `sync` never runs and no path rule loads,
+  silently, since the hook's error is shown to the person, not the model. The two candidate
+  fixes are a hook in exec form, `node` with `args`, which loses the "Run npm install" message,
+  and a command valid in both shells, which relies on Claude Code substituting
+  `${CLAUDE_PROJECT_DIR}` itself. Neither is tested.
 
 ## Two `superpowers` skills give opposite review ranges
 
