@@ -11,23 +11,6 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
-## `need_plugins` may not match a Windows short-name path
-
-- Where: `core/lib.sh`, `need_plugins`, the `real` helper that resolves `projectPath` and `.`
-- Found: 2026-10-20, while making `./check 50` run on Windows; a suspicion, not an observed
-  failure
-- Priority: P5 — only a project reached through an 8.3 short name, such as one under a `TEMP`
-  of a user name longer than eight characters
-- Problem: `real` uses `fs.realpathSync`, which on Windows keeps 8.3 short names:
-  `C:/PROGRA~1` resolves to `C:\PROGRA~1`, where `fs.realpathSync.native` gives
-  `C:\Program Files`. If Claude Code records `projectPath` in the long form, a project opened
-  through a short path never matches its own entries. What Claude Code records on Windows was
-  not seen: the machine it was found on had no plugin installed.
-- Impact: if so, `need_plugins` installs every enabled plugin again on each run in such a
-  project, and whether `claude plugin install` tolerates that is untested.
-  Confirm by installing a plugin at project scope from a short-name path and reading
-  `claude plugin list --json`; the fix would be `realpathSync.native`.
-
 ## The kit needs Git Bash on Windows
 
 - Where: the session-start hook `charter init` writes (`hookCommand` in `bin/charter.mjs`),
