@@ -11,6 +11,25 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## `./check` fails on Windows
+
+- Where: `checks/10-package.sh`, `50-lib.sh`, `70-init.sh`, `90-lint.sh` and `95-html.sh`
+- Found: 2026-10-20, running `./check` in Git Bash on Windows 11, while narrowing the Windows
+  sync hook entry; the five fail the same way on the tree before that change
+- Priority: P2 — nobody can verify a change on Windows, where some consuming projects are
+  developed
+- Problem: `./check` stops at its first check, so run each `checks/*.sh` on its own to see all
+  five. 10: line 58 pastes the path `require.resolve` returns, `C:\Users\…`, into a JavaScript
+  string literal, where the backslashes are read as escapes. 70: `ln -s` in Git Bash does not
+  make a symbolic link, so the hook test fails with `File exists`. 95: `charter scan` of a
+  directory reports Windows paths, `C:\…\site\aria.html`, where the check expects others. 50:
+  `need_plugins` installs a plugin the stub reports already present, perhaps because its
+  `projectPath` comparison meets a Windows path. 90: oxlint lints nothing under `typescript`;
+  the cause is not known. Only 10 and 70 are certainly faults of the check alone — 50 and 95 may
+  be the kit misbehaving on Windows.
+- Impact: a change made on Windows cannot be verified there, and any Windows fault in
+  `need_plugins` or `scan` that 50 and 95 point at reaches consuming projects unseen
+
 ## `./check 40` proves rule loading only for Claude Code running Claude
 
 - Where: `checks/40-rules.sh`, the live session check, which calls `claude -p` on the CLI's
