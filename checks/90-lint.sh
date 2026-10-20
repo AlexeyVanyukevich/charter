@@ -6,17 +6,19 @@ set -euo pipefail
 cd tests/fixture
 npm install --silent --no-audit --no-fund
 
-kit="$PWD/node_modules/charter"
 oxlint="$PWD/node_modules/.bin/oxlint"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 fail() { echo "  ✗ $*"; exit 1; }
 
-# A project's .oxlintrc.json, extending the named stacks in the order given.
+# A project's .oxlintrc.json, extending the named stacks in the order given. Node writes the
+# paths: in Git Bash on Windows, $PWD is /c/Users/…, which oxlint reads as C:/c/Users/….
 config() {
-  local stack list=''
-  for stack in "$@"; do list+="${list:+, }\"$kit/stacks/$stack/oxlint.json\""; done
-  echo "{ \"extends\": [$list] }" > "$tmp/oxlintrc.json"
+  node -e '
+    const { resolve } = require("path")
+    const stacks = process.argv.slice(1).map((stack) => resolve("node_modules/charter/stacks", stack, "oxlint.json"))
+    console.log(JSON.stringify({ extends: stacks }))
+  ' "$@" > "$tmp/oxlintrc.json"
 }
 
 # The rules that fired, as plugin(rule), sorted and space-separated; '-' for none.
