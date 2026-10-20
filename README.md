@@ -92,6 +92,15 @@ secret while npm keeps the workflow's token for GitHub Packages. **Without
 repository's git config, git sends it ahead of any credential helper, and GitHub answers
 "Repository not found".
 
+**On Windows the kit needs Git Bash,** which Git for Windows installs. Its shell parts are bash:
+`lib.sh` and the `./run` frame that sources it, the `need_plugins` and `need_hooks` that `init`
+ends with, and the session-start hook `init` writes, a POSIX shell line. An agent that finds no
+bash runs that hook through another shell, which cannot parse it, so the session starts without
+its path rules. The only sign is a hook error shown to the person — from PowerShell,
+`At line:1 char:65` — and the model sees nothing. Install Git for Windows, or, where it is
+installed somewhere the agent does not look, point the agent at its `bash.exe` — in Claude Code,
+with `CLAUDE_CODE_GIT_BASH_PATH`. Then start a new session.
+
 ## Modules
 
 | Module | Kind | For | Brings |
@@ -146,7 +155,8 @@ and then adds what is missing, changing nothing that is set:
 - `@node_modules/charter/core/rules.md` in the root `CLAUDE.md`. A workspace needs no
   `CLAUDE.md` import of its own: rules are scoped by path.
 - in `.claude/settings.json`, a `SessionStart` hook that runs `charter sync` — or, on a clone
-  where `npm install` has not run yet, fails saying to run it. The hook an older kit wrote is
+  where `npm install` has not run yet, fails saying to run it. It is a shell line, so on Windows
+  it needs Git Bash, as under Install. The hook an older kit wrote is
   rewritten where it stands. Then the plugins of the named modules, which are listed in a
   module's `plugins.json`: `frontend` brings `frontend-design`, and `playwright` the
   `playwright` plugin. A plugin set to `false` stays off. Up to 3.2, `react` brought both;

@@ -11,6 +11,25 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## The kit needs Git Bash on Windows
+
+- Where: the session-start hook `charter init` writes (`hookCommand` in `bin/charter.mjs`),
+  `core/lib.sh`, and `init`'s run of `need_plugins` and `need_hooks`
+- Found: 2026-10-20, deciding how to fix the sync hook on Windows without Git Bash; a
+  requirement taken on purpose and stated in the README, under Install
+- Priority: P5 — Git for Windows brings Git Bash, and most Windows developers have it
+- Problem: without Git Bash, `init` stops before `need_plugins`, saying bash cannot be run;
+  `./run` cannot start; and the agent runs the hook through PowerShell, which cannot parse it,
+  so the session starts without its path rules and only the person sees a hook error.
+- Impact: a Windows developer without Git for Windows works without path rules until they read
+  the README. The hook alone can drop its shell in Claude Code's exec form: `command: "node"`
+  with `args: ["-e", <program>, "node_modules/charter/bin/charter.mjs"]`, the program checking
+  for the kit in Node to keep the "Run npm install" message. Probed 2026-10-20 on Windows 11
+  with Claude Code 2.1.251 and the shell forced to PowerShell, it synced at the root and in a
+  workspace and kept the message. It needs Claude Code 2.1.139, which added `args`: 2.1.138
+  runs bare `node`, which fails reading the hook's input as a program. Worth doing together with
+  `lib.sh` and `init`, since the hook alone leaves the rest needing bash.
+
 ## `./check` fails on Windows
 
 - Where: `checks/10-package.sh`, `50-lib.sh`, `90-lint.sh` and `95-html.sh`
@@ -57,25 +76,6 @@ turning it on.
   the answer, so it cannot tell which.
 - Impact: a full `./check` can fail with nothing to blame; if the rule did not load, a session
   started in a workspace sometimes works without its path rules
-
-## The sync hook does not run on Windows without Git Bash
-
-- Where: the `SessionStart` hooks `charter init` writes, at the root and in each workspace, a
-  POSIX shell line around `node "$f" sync` with
-  `f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"` (`$CLAUDE_PROJECT_DIR/../…` in a
-  workspace)
-- Found: 2026-10-13, while designing 3.0; narrowed 2026-10-20 by running it on Windows 11 with
-  Claude Code 2.1.251
-- Priority: P2 — some consuming projects are developed on Windows
-- Problem: with Git Bash installed, the hook works at the root and in a workspace, and its
-  missing-kit message reaches the session. Without Git Bash, Claude Code runs a hook with no
-  `shell` field through PowerShell, where the line is a parse error at `if [ -f …`. Run the
-  hook's command with `powershell.exe -Command` to see it.
-- Impact: on a Windows machine without Git Bash, `sync` never runs and no path rule loads,
-  silently, since the hook's error is shown to the person, not the model. The two candidate
-  fixes are a hook in exec form, `node` with `args`, which loses the "Run npm install" message,
-  and a command valid in both shells, which relies on Claude Code substituting
-  `${CLAUDE_PROJECT_DIR}` itself. Neither is tested.
 
 ## Two `superpowers` skills give opposite review ranges
 
