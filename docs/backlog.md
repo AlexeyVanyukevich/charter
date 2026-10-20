@@ -46,19 +46,6 @@ turning it on.
   by running the session check against the new model, and add a writer to `sync` only for a tool
   that cannot read the files the kit already writes.
 
-## `./check 40`'s workspace session answered wrongly once in 24
-
-- Where: `checks/40-rules.sh`, the live session started in `server/`
-- Found: 2026-10-15, in the full run before the 3.3.0 release
-- Priority: P4
-- Problem: run 3, after reading `server/src/modules/issues/issue.routes.ts`, answered only
-  `2026-09-29`, with no second line at all; a session without `http.md` answers `NONE` there.
-  The other 23 workspace sessions that day passed, 12 of them straight after on the same tree.
-  Either the model dropped the line or `http.md` did not load that once: the check keeps only
-  the answer, so it cannot tell which.
-- Impact: a full `./check` can fail with nothing to blame; if the rule did not load, a session
-  started in a workspace sometimes works without its path rules
-
 ## Two `superpowers` skills give opposite review ranges
 
 - Where: the `superpowers` skills `requesting-code-review`, line 28, and

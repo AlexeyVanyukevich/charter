@@ -113,7 +113,8 @@ holders() {
 # and Claude Code does not follow an import whose real path lies outside the project. The fixture
 # would fail where every registry or git consumer, who gets a real directory, succeeds.
 if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1; then
-  consumer="$(mktemp -d)"
+  # Its physical path, as the session sees it: on macOS mktemp's /var is a link to /private/var.
+  consumer="$(cd "$(mktemp -d)" && pwd -P)"
   trap 'rm -rf "$consumer"' EXIT
   # The root and a server workspace both hold a routes file and a script, so the same questions are
   # asked of a session started at the root and of one started in the workspace, which reads core
@@ -131,25 +132,54 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
     node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server ) >/dev/null ||
     { echo "  ✗ charter init failed in the scratch consumer"; exit 1; }
 
-  # ask <directory the session starts in> <file to read, from there>
-  ask() {
+  # session <directory the session starts in> <file in it to read>: sets $answer, and $seen to
+  # what the session's transcript shows — `read <file>` for each Read, `rule <file>` for each path
+  # rule it loaded — and fails unless the session read the file asked for.
+  #
+  # The file is given absolute. Given a relative one, a workspace session sometimes resolved it
+  # from the repository root its hook names, was refused the read, and so loaded no path rule:
+  # an answer alone cannot tell that from a rule that failed to load, and the transcript can.
+  session() {
+    local id file transcript
+    file="$consumer/$1/$2"
+    [ "$1" = . ] && file="$consumer/$2"
+    id="$(node -e 'console.log(crypto.randomUUID())')"
     rm -rf "$consumer/.claude/rules/charter"
-    ( cd "$consumer/$1" && claude -p "First use Read on $2 and nothing else. Then answer from your loaded instructions only, never by searching files. Line 1: the date the backlog rule's example entry was found, or NONE. Line 2: the error code for a write whose Origin is not the app's own, or NONE. Nothing else." \
-      --disallowedTools Bash Grep Glob Edit Write Agent WebFetch WebSearch 2>&1 || true ) | tr -d '`'
+    answer="$( (cd "$consumer/$1" && claude -p "First use Read on $file and nothing else. Then answer from your loaded instructions only, never by searching files. Line 1: the date the backlog rule's example entry was found, or NONE. Line 2: the error code for a write whose Origin is not the app's own, or NONE. Nothing else." \
+      --session-id "$id" --disallowedTools Bash Grep Glob Edit Write Agent WebFetch WebSearch < /dev/null 2>&1 || true) | tr -d '`')"
+    transcript="$(find "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects" -name "$id.jsonl" 2>/dev/null | head -n 1 || true)"
+    [ -n "$transcript" ] || { echo "  ✗ run $run, started $at: no transcript for session $id, so what it loaded is unknown"; exit 1; }
+    seen="$(node -e '
+      const [transcript, consumer] = process.argv.slice(1)
+      const within = (path, dir) => (path.replaceAll("\\", "/").startsWith(dir + "/") ? path.replaceAll("\\", "/").slice(dir.length + 1) : null)
+      for (const line of require("fs").readFileSync(transcript, "utf8").split("\n")) {
+        let entry
+        try { entry = JSON.parse(line) } catch { continue }
+        for (const part of entry?.type === "assistant" ? entry.message?.content ?? [] : [])
+          if (part?.type === "tool_use" && part.name === "Read") console.log(`read ${within(part.input?.file_path ?? "", consumer) ?? part.input?.file_path}`)
+        const rule = entry?.type === "attachment" && entry.attachment?.type === "nested_memory" ? within(entry.attachment.path ?? "", `${consumer}/.claude/rules/charter`) : null
+        if (rule) console.log(`rule ${rule}`)
+      }' "$transcript" "$consumer")"
+    grep -qxF "read ${file#"$consumer"/}" <<< "$seen" ||
+      { echo "  ✗ run $run, started $at: asked to read ${file#"$consumer"/}, the session did not. Saw: $(tr '\n' ' ' <<< "$seen")"; exit 1; }
   }
   for run in 1 2 3; do
     for dir in . server; do
       at="$([ "$dir" = . ] && echo 'at the root' || echo "in $dir/")"
-      answer="$(ask "$dir" scripts/seed.ts)"
+      session "$dir" scripts/seed.ts
+      ! grep -q '^rule .*/backend/http\.md$' <<< "$seen" ||
+        { echo "  ✗ run $run, started $at: http.md loaded outside its globs. Saw: $(tr '\n' ' ' <<< "$seen")"; exit 1; }
       grep -qF "$core_fact" <<< "$answer" && grep -qx 'NONE' <<< "$answer" && ! grep -qF "$path_fact" <<< "$answer" ||
         { echo "  ✗ run $run, started $at: outside http.md's globs, wanted $core_fact and NONE. Got: $answer"; exit 1; }
-      answer="$(ask "$dir" src/modules/issues/issue.routes.ts)"
+      session "$dir" src/modules/issues/issue.routes.ts
+      grep -q '^rule .*/backend/http\.md$' <<< "$seen" ||
+        { echo "  ✗ run $run, started $at: http.md did not load in a routes file. Saw: $(tr '\n' ' ' <<< "$seen")"; exit 1; }
       grep -qF "$core_fact" <<< "$answer" && grep -qx "$path_fact" <<< "$answer" ||
-        { echo "  ✗ run $run, started $at: in a routes file, wanted $core_fact and $path_fact. Got: $answer"; exit 1; }
+        { echo "  ✗ run $run, started $at: http.md loaded in a routes file, but the answer lacked $core_fact or $path_fact. Got: $answer"; exit 1; }
     done
   done
   echo "  ✓ three times over, a real session started at the root and one started in a workspace each"
-  echo "    read core at once and http.md only in a matching file"
+  echo "    read core at once and http.md only in a matching file, as answered and as each transcript shows"
 else
   echo "  · session check skipped (no claude CLI, or CHARTER_SKIP_SESSION_CHECK set)"
 fi
