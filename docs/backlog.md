@@ -11,23 +11,6 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
-## A workspace session may resolve a relative path from the repository root
-
-- Where: sessions started in a workspace, which the workspace hook tells they are "below the
-  repository root" (`sync` in `bin/charter.mjs`)
-- Found: 2026-10-20, reading the transcripts behind `./check 40`'s failure of 2026-10-15
-- Priority: P3 — the session works on the wrong workspace's file, and nothing says so
-- Problem: asked to read `src/modules/issues/issue.routes.ts` or `scripts/seed.ts` from
-  `server/`, three of that run's six workspace sessions asked for the root's file instead, and
-  were refused it as outside the session's directory; the routes one so loaded no path rule and
-  answered `NONE`. The two `scripts/seed.ts` ones passed only because `NONE` was right whichever
-  file was read. The 2026-10-20 sessions all resolved it from
-  `server/`. Whether the hook's wording causes it is unproven; `./check 40` now gives absolute
-  paths, so it no longer measures it.
-- Impact: in a monorepo whose root and workspace share a layout, a session started in the
-  workspace can read or edit the root's file of the same name. Measure it first: the same
-  relative-path question, many times from `server/`, with and without the hook's root wording.
-
 ## The kit needs Git Bash on Windows
 
 - Where: the session-start hook `charter init` writes (`hookCommand` in `bin/charter.mjs`),

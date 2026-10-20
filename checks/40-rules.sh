@@ -136,9 +136,10 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
   # what the session's transcript shows — `read <file>` for each Read, `rule <file>` for each path
   # rule it loaded — and fails unless the session read the file asked for.
   #
-  # The file is given absolute. Given a relative one, a workspace session sometimes resolved it
-  # from the repository root its hook names, was refused the read, and so loaded no path rule:
-  # an answer alone cannot tell that from a rule that failed to load, and the transcript can.
+  # The file is given absolute. Given a relative one, a workspace session often resolved it from
+  # the repository root and was refused the read: the git status in its context lists this
+  # uncommitted consumer's root directories by name, and the workspace only as `./`. An answer
+  # alone cannot tell a refused read from a rule that failed to load; the transcript can.
   session() {
     local id file transcript
     file="$consumer/$1/$2"
