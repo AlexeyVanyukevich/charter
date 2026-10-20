@@ -29,6 +29,9 @@ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 project() { rm -rf "$tmp/$1"; mkdir -p "$tmp/$1/node_modules/charter"; echo "$tmp/$1"; }
 fail() { echo "  ✗ $*"; exit 1; }
+# link <directory> <link>. Git Bash's ln -s copies instead of linking; a junction needs no
+# privilege on Windows, and elsewhere Node ignores the type and makes a symlink.
+link() { node -e 'require("fs").symlinkSync(process.argv[1], process.argv[2], "junction")' "$1" "$2"; }
 hook='f="$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs"; if [ -f "$f" ]; then node "$f" sync; else echo "charter: $f is missing, so no path rule was synced. Run npm install." >&2; exit 1; fi'
 old_hook='node "$CLAUDE_PROJECT_DIR/node_modules/charter/bin/charter.mjs" sync'
 # A workspace's hook reaches the root's kit through one .. per level of the workspace's path.
@@ -93,7 +96,7 @@ p="$(project hook)"
 ( cd "$p" && node "$cli" init backend ) >/dev/null || fail "init backend failed"
 rm -rf "$p/.claude/rules/charter"
 rmdir "$p/node_modules/charter"
-ln -s "$PWD" "$p/node_modules/charter"
+link "$PWD" "$p/node_modules/charter"
 ( cd "$p" && CLAUDE_PROJECT_DIR="$p" sh -c "$hook" ) || fail "the hook failed with the kit installed"
 [ -f "$p/.claude/rules/charter/@root/backend/http.md" ] || fail "the hook did not sync"
 rm "$p/node_modules/charter"
@@ -251,7 +254,7 @@ node -e '
 # the root CLAUDE.md's import does not reach there; before npm install it says to run it.
 rm -rf "$p/.claude/rules/charter"
 rmdir "$p/node_modules/charter"
-ln -s "$PWD" "$p/node_modules/charter"
+link "$PWD" "$p/node_modules/charter"
 printed="$(cd "$p/server" && CLAUDE_PROJECT_DIR="$p/server" sh -c "$(ws_hook ..)")" ||
   fail "the workspace hook failed with the kit installed"
 [ -f "$p/.claude/rules/charter/server/backend/http.md" ] || fail "the workspace hook did not sync the root's mirror"
@@ -318,8 +321,9 @@ SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.jso
 SETUP='mkdir .claude && echo "{ \"hooks\": [] }" > .claude/settings.json' \
   refuses 'hooks as an array' 'hooks' init typescript
 SETUP='echo "{" > charter.json' refuses 'broken charter.json' 'charter.json' init typescript
+# init names the file with the platform's separator, as server\.claude\settings.json on Windows.
 SETUP='mkdir -p server/.claude && echo "{" > server/.claude/settings.json' \
-  refuses "a workspace's broken settings JSON" 'server/.claude/settings.json' init typescript --workspace server
+  refuses "a workspace's broken settings JSON" 'server[/\]\.claude[/\]settings\.json' init typescript --workspace server
 # What sync would refuse — another workspace already recorded — init refuses before writing.
 SETUP='echo "{ \"workspaces\": { \"gone\": [\"node\"] } }" > charter.json' \
   refuses 'a recorded workspace that is gone' 'not a directory' init typescript
@@ -363,8 +367,8 @@ grep -q 'Usage: charter init' <<< "$err" || fail "a consumer's charter does not 
 # after a first init and after one that adds a module. The fixture installed Prettier above.
 p="$(project prettier)"
 rmdir "$p/node_modules/charter"
-ln -s "$PWD" "$p/node_modules/charter"
-ln -s "$PWD/tests/fixture/node_modules/prettier" "$p/node_modules/prettier"
+link "$PWD" "$p/node_modules/charter"
+link "$PWD/tests/fixture/node_modules/prettier" "$p/node_modules/prettier"
 echo '{ "prettier": "charter/stacks/typescript/prettier" }' > "$p/package.json"
 prettier_check() { (cd "$p" && node node_modules/prettier/bin/prettier.cjs --check charter.json .claude/settings.json); }
 ( cd "$p" && node "$cli" init frontend typescript playwright ) >/dev/null || fail "init with Prettier installed failed"
