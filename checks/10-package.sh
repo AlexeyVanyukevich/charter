@@ -55,18 +55,20 @@ resolved="$( cd "$fixture" && node -e '
 ')"
 [ -f "$resolved" ] || { echo "  ✗ the package does not resolve from the fixture"; exit 1; }
 
-name="$(node -p "require('$resolved').name")"
+# The path goes in as an argument, not into the program: on Windows its backslashes would be
+# read as escapes in a string literal.
+name="$(node -p "require(process.argv[1]).name" "$resolved")"
 [ "$name" = "charter" ] || { echo "  ✗ resolved the wrong package: $name"; exit 1; }
 
 # The kit exists so consumers stop inheriting things. It may never bring a tree with it.
 for field in dependencies peerDependencies; do
-  count="$(node -p "Object.keys(require('$resolved').$field ?? {}).length")"
+  count="$(node -p "Object.keys(require(process.argv[1]).$field ?? {}).length" "$resolved")"
   [ "$count" = 0 ] || { echo "  ✗ package.json declares $field"; exit 1; }
 done
 
 # A git dependency that has to build breaks on a machine missing a toolchain.
 for script in prepare prepublishOnly install postinstall; do
-  has="$(node -p "Boolean(require('$resolved').scripts?.$script)")"
+  has="$(node -p "Boolean(require(process.argv[1]).scripts?.$script)" "$resolved")"
   [ "$has" = false ] || { echo "  ✗ package.json declares a $script script"; exit 1; }
 done
 
