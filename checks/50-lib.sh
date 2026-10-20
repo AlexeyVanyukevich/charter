@@ -125,13 +125,15 @@ printf '%s\n' '{ "enabledPlugins": {
   "b@claude-plugins-official": true,
   "off@claude-plugins-official": false
 } }' > "$project/.claude/settings.json"
-here="$(cd "$project" && pwd -P)"
+# The directory as Node resolves it, already a JSON string. On Windows that is C:\…; pwd would
+# give Git Bash's /tmp/…, which Node cannot resolve, so need_plugins would see nothing installed.
+here="$(cd "$project" && node -p 'JSON.stringify(require("fs").realpathSync("."))')"
 
 # a is installed here, b only in another repository, so b alone is missing; the official
 # marketplace is not registered, so it is added first.
 : > "$CLAUDE_LOG"
 ( cd "$project" && source "$lib" && PATH="$bin:$real_path" \
-  FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"$here\"},
+  FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":$here},
                    {\"id\":\"b@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"/elsewhere\"}]" \
   need_plugins ) >/dev/null || { echo "  ✗ need_plugins failed installing a missing plugin"; exit 1; }
 grep -qx 'plugin install b@claude-plugins-official --scope project' "$CLAUDE_LOG" ||
@@ -152,8 +154,8 @@ grep -q 'marketplace add' "$CLAUDE_LOG" &&
 # Nothing missing: nothing installed, nothing printed.
 : > "$CLAUDE_LOG"
 result="$(cd "$project" && source "$lib" && PATH="$bin:$real_path" \
-  FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"$here\"},
-                   {\"id\":\"b@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":\"$here\"}]" \
+  FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":$here},
+                   {\"id\":\"b@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":$here}]" \
   need_plugins)"
 [ -z "$result" ] || { echo "  ✗ need_plugins printed '$result' with nothing to install"; exit 1; }
 grep -q 'install' "$CLAUDE_LOG" && { echo "  ✗ need_plugins installed with nothing missing"; exit 1; }
