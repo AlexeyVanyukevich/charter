@@ -65,8 +65,9 @@ cp html/tabs.html "$tmp/site/node_modules/pkg/"
 cp html/tabs.html "$tmp/site/.cache/"
 cp html/button.html "$tmp/site/nested/"
 echo '<p>not markup</p>' > "$tmp/site/notes.txt"
+# On Windows scan names each file natively, C:\…\site\aria.html, so the prefix is cut at site/.
 files="$( { node_modules/.bin/charter scan "$tmp/site" 2>&1 || true; } | sed -nE 's/^([^ ]+): .*/\1/p' |
-  sed "s|^$tmp/site/||" | sort -u | tr '\n' ' ' | sed 's/ $//')"
+  tr '\\' / | sed 's|^.*/site/||' | sort -u | tr '\n' ' ' | sed 's/ $//')"
 [ "$files" = 'aria.html button.html labels.html nested/button.html tabs.html untitled.html' ] ||
   fail "scanning a directory reported '$files'"
 
