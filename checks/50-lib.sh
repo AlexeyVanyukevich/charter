@@ -160,6 +160,27 @@ result="$(cd "$project" && source "$lib" && PATH="$bin:$real_path" \
 [ -z "$result" ] || { echo "  ✗ need_plugins printed '$result' with nothing to install"; exit 1; }
 grep -q 'install' "$CLAUDE_LOG" && { echo "  ✗ need_plugins installed with nothing missing"; exit 1; }
 
+# Another spelling of this directory is still this directory. Windows has two that a plain
+# realpath keeps as given — other letter case, and an 8.3 short name such as C:\PROGRA~1 — so
+# each is derived from the directory here, never typed. Elsewhere a path has one spelling.
+spellings=""
+if [ "$(node -p process.platform)" = win32 ]; then
+  spellings="upper case|$(cd "$project" && node -p 'require("fs").realpathSync.native(".").toUpperCase()')
+8.3 short name|$(cd "$project" && cmd //c 'for %I in (.) do @echo %~sI' | tr -d '\r')"
+fi
+while IFS='|' read -r name spelling; do
+  [ -n "$name" ] || continue
+  json="$(node -p 'JSON.stringify(process.argv[1])' "$spelling")"
+  : > "$CLAUDE_LOG"
+  ( cd "$project" && source "$lib" && PATH="$bin:$real_path" \
+    FAKE_MARKETPLACES='[{"name":"claude-plugins-official"}]' \
+    FAKE_INSTALLED="[{\"id\":\"a@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":$json},
+                     {\"id\":\"b@claude-plugins-official\",\"scope\":\"project\",\"projectPath\":$json}]" \
+    need_plugins ) >/dev/null || { echo "  ✗ need_plugins failed with its plugins recorded under its $name"; exit 1; }
+  grep -q '^plugin install' "$CLAUDE_LOG" &&
+    { echo "  ✗ need_plugins reinstalled plugins recorded under this directory's $name"; cat "$CLAUDE_LOG"; exit 1; }
+done <<< "$spellings"
+
 # Each install runs with no stdin: a claude that reads it — a confirmation prompt — would
 # otherwise consume the ids still waiting in the loop, and those plugins would silently not install.
 : > "$CLAUDE_LOG"

@@ -116,12 +116,13 @@ need_plugins() {
   fi
 
   # Installed for this repository means a project-scope entry whose projectPath is this directory.
-  # Both sides go through realpath, because a temp or symlinked path is recorded resolved.
+  # Both sides go through realpath, because a temp or symlinked path is recorded resolved. It is
+  # the native one, because on Windows the other keeps an 8.3 short name and the case it was given.
   local missing
   # shellcheck disable=SC2086
   missing="$(claude plugin list --json | node -e '
     const fs = require("fs")
-    const real = (p) => { try { return fs.realpathSync(p) } catch { return p } }
+    const real = (p) => { try { return fs.realpathSync.native(p) } catch { return p } }
     const here = real(".")
     const have = new Set(JSON.parse(fs.readFileSync(0, "utf8"))
       .filter((p) => p.scope === "project" && real(p.projectPath) === here)
