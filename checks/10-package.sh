@@ -18,6 +18,7 @@ expect_packed() {
 expect_packed 'package.json'
 expect_packed 'bin/charter.mjs'
 expect_packed 'bin/modules.mjs'
+expect_packed 'bin/release.mjs'
 expect_packed 'bin/scan.mjs'
 expect_packed 'bin/sync.mjs'
 
