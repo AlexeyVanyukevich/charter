@@ -161,6 +161,11 @@ cut_project() {
     npm install --package-lock-only --ignore-scripts --offline --silent
     printf 'Install: "app": "^1.2.3"\n' > README.md
     printf 'Since 1.2.3 the session is kept.\n' > history.md
+    # Dated records: they mention versions as history, and are never copies of one.
+    mkdir -p docs/superpowers/specs docs/superpowers/plans/archive
+    printf 'Found while cutting 1.2.3.\n' > docs/backlog.md
+    printf '1.2.3 showed the gap.\n' > docs/superpowers/specs/2026-01-01-x-design.md
+    printf 'Before 1.2.3.\n' > docs/superpowers/plans/archive/2026-01-01-x.md
     printf '{ "workspaces": {}, "release": { "files": ["README.md"] } }\n' > charter.json
     git add -A && git commit -qm 'chore: list the release files' && git push -q origin main
     mkdir -p "../hooks"
@@ -184,6 +189,7 @@ grep -qF '"version": "1.3.0"' "$r/package-lock.json" && ! grep -qF '"version": "
   fail "the lockfile's version was not bumped"
 [ "$(cat "$r/README.md")" = 'Install: "app": "^1.3.0"' ] || fail "a listed file's version was not bumped: $(cat "$r/README.md")"
 grep -qF 'history.md' <<< "$out" || fail "an unlisted file still holding 1.2.3 was not reported: $out"
+grep -qF 'docs/' <<< "$out" && fail "a dated record under docs/ was reported as a copy of the version: $out"
 [ "$(cat "$r/history.md")" = 'Since 1.2.3 the session is kept.' ] || fail "an unlisted file was changed"
 [ "$(cd "$r" && git cat-file -t v1.3.0)" = commit ] || fail "the tag is not a lightweight tag"
 [ "$(cd "$r" && git rev-parse v1.3.0)" = "$(cd "$r" && git rev-parse HEAD)" ] || fail "the tag is not on the release commit"
