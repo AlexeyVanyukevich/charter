@@ -1,9 +1,10 @@
 // charter release: the gates a release must pass, the commits since the last tag, and the
-// version they propose; and a skeleton of the release's notes. Neither writes anything. Spec:
-// docs/superpowers/specs/2026-10-21-release-design.md.
+// version they propose; a skeleton of the release's notes; and the cut — every copy of the
+// version bumped, one commit, a tag, never a push. Only the cut writes, and only once every gate
+// and refusal has passed. Spec: docs/superpowers/specs/2026-10-21-release-design.md.
 
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { KitError } from './modules.mjs'
 import { manifestFile } from './sync.mjs'
@@ -184,4 +185,77 @@ export function notes(root, wanted) {
   for (const subject of commits.filter((subject) => !news.includes(subject) && !fixes.includes(subject))) {
     console.error(`Left out: ${subject}`)
   }
+}
+
+const lockfiles = ['package-lock.json', 'npm-shrinkwrap.json']
+
+// Bumps every copy of the version, commits them alone as chore: release X.Y.Z through the
+// project's commit hooks, and tags that commit. Prints how to push; never pushes.
+export function cut(root, wanted) {
+  const settings = releaseSettings(root)
+  const { tag, previous, commits } = survey(root)
+  const version = target(previous, wanted)
+  if (compare(version, previous) <= 0) {
+    throw new KitError(`${version} is not above ${previous}, the last release.`, 'Give a higher version.')
+  }
+  if (git(root, 'tag', '--list', `v${version}`) !== '') {
+    throw new KitError(`The tag v${version} already exists.`, 'Give another version, or delete the tag if it is wrong.')
+  }
+  if (!existsSync(join(root, 'package.json'))) throw new KitError('There is no package.json to bump.')
+  const current = packageVersion(root)
+  if (tag && current !== previous) {
+    throw new KitError(
+      `package.json says ${current}, but the last tag is ${tag}.`,
+      'Bring package.json back to the last release, or tag the release it names.',
+    )
+  }
+  const listed = settings.files ?? []
+  for (const file of listed) {
+    const path = join(root, file)
+    if (!existsSync(path) || !readFileSync(path, 'utf8').includes(current)) {
+      throw new KitError(
+        `${file} does not hold ${current}, so release.files in ${manifestFile} has gone stale.`,
+        `Remove ${file} from the list, or bring it back to ${current}.`,
+      )
+    }
+  }
+  const results = gates(root, settings, commits)
+  const failed = results.filter((result) => result.ok === false)
+  if (failed.length > 0) {
+    throw new KitError(`A gate failed:\n${failed.map((result) => `  ✗ ${result.text}`).join('\n')}`, 'Run charter release to see every gate.')
+  }
+
+  // A tracked file outside the list may only mention the version, so it is reported, not changed.
+  const ours = new Set(['package.json', ...lockfiles, ...listed])
+  let stray = []
+  try {
+    stray = git(root, 'grep', '-l', '-F', '-e', current).split('\n').filter((file) => file !== '' && !ours.has(file))
+  } catch {
+    // git grep exits 1 when nothing matches.
+  }
+
+  const npm = spawnSync('npm', ['version', version, '--no-git-tag-version', '--ignore-scripts'], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: process.platform === 'win32',
+  })
+  if (npm.status !== 0) throw new KitError(`npm version ${version} failed: ${(npm.stderr || npm.error?.message || '').trim()}`)
+  for (const file of listed) {
+    const path = join(root, file)
+    writeFileSync(path, readFileSync(path, 'utf8').replaceAll(current, version))
+  }
+  const files = ['package.json', ...lockfiles.filter((file) => existsSync(join(root, file))), ...listed]
+  git(root, 'add', '--', ...files)
+  const commit = spawnSync('git', ['commit', '-q', '-m', `chore: release ${version}`], { cwd: root, stdio: 'inherit' })
+  if (commit.status !== 0) {
+    throw new KitError(
+      `The release commit failed; ${files.join(', ')} are bumped and staged, and nothing is tagged.`,
+      'Fix what the hook said, then commit and tag by hand, or git restore --staged --worktree them.',
+    )
+  }
+  git(root, 'tag', `v${version}`)
+  console.log(`✓ committed chore: release ${version} — ${files.join(', ')}`)
+  console.log(`✓ tagged v${version}`)
+  for (const file of stray) console.log(`  ${file} still holds ${current}: check it, it was not changed`)
+  console.log(`\nNothing is pushed. To publish: git push origin main v${version}`)
 }
