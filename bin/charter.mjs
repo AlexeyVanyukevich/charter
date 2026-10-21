@@ -7,6 +7,7 @@
 //   charter scan <file or directory…>              runs axe-core over static HTML files
 //   charter release                                shows the gates, the commits since the last
 //                                                  tag and the version they propose
+//   charter release notes [<version>]              prints a skeleton of the release's notes
 //
 // init adds what is missing and changes nothing that is set. Spec:
 // docs/superpowers/specs/2026-10-13-foundation-design.md.
@@ -18,13 +19,13 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { KitError, findModules } from './modules.mjs'
-import { repositoryRoot, show } from './release.mjs'
+import { notes, repositoryRoot, show } from './release.mjs'
 import { scan } from './scan.mjs'
 import { coreText, findRoot, manifestFile, normalizeWorkspace, plan, readManifest, sync } from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const usage =
-  'Usage: charter init [<module…>] [--workspace <dir>]  |  charter sync  |  charter scan <file or directory…>  |  charter release'
+  'Usage: charter init [<module…>] [--workspace <dir>]  |  charter sync  |  charter scan <file or directory…>  |  charter release [notes [<version>]]'
 const settingsFile = join('.claude', 'settings.json')
 const coreImport = '@node_modules/charter/core/rules.md'
 const ignored = '.claude/rules/charter/'
@@ -72,8 +73,11 @@ function parse(argv) {
     return { command, paths: names }
   }
   if (command === 'release') {
-    if (names.length > 0 || parsed.values.workspace !== undefined) fail('release takes no arguments yet.', usage)
-    return { command }
+    const [action, version, ...rest] = names
+    if (parsed.values.workspace !== undefined || rest.length > 0 || (action !== undefined && action !== 'notes')) {
+      fail('release takes nothing, or notes and a version.', usage)
+    }
+    return { command, action, version }
   }
   if (command !== 'init') fail(command ? `Unknown command: ${command}.` : 'No command given.', usage)
   return { command, names: [...new Set(names)], workspace: parsed.values.workspace ?? '.' }
@@ -325,6 +329,10 @@ if (options.command === 'scan') {
 }
 if (options.command === 'release') {
   const root = guard(() => repositoryRoot(process.cwd()))
+  if (options.action === 'notes') {
+    guard(() => notes(root, options.version))
+    process.exit(0)
+  }
   process.exit(guard(() => show(root)) ? 0 : 1)
 }
 await init(options)
