@@ -1,6 +1,7 @@
 // Mirrors each workspace's path-scoped rules into .claude/rules/charter/, writing the workspace's
-// path in front of every pattern. Computes everything before writing anything, and prints
-// nothing: a SessionStart hook's stdout goes into the session's context. Spec §3.
+// path in front of every pattern, and core's skills into .claude/skills/charter-<name>/. Computes
+// everything before writing anything, and prints nothing: a SessionStart hook's stdout goes into
+// the session's context. Spec §3; skills: docs/superpowers/specs/2026-10-21-release-design.md.
 
 import {
   existsSync,
@@ -18,6 +19,9 @@ import { KitError, findModules } from './modules.mjs'
 
 export const manifestFile = 'charter.json'
 export const rulesDir = join('.claude', 'rules', 'charter')
+// .claude/skills/ is the project's; only the directories named with this prefix are the kit's.
+export const skillsDir = join('.claude', 'skills')
+const skillPrefix = 'charter-'
 const rootName = '@root'
 
 export function normalizeWorkspace(key) {
@@ -142,29 +146,59 @@ export function plan(root, kit, manifest = readManifest(root)) {
       }
     }
   }
+  // core's skills, once for the repository: a session reads .claude/skills/ from where it starts
+  // up to the root. Each directory ignores itself, so no consumer's .gitignore needs a line.
+  const skills = join(kit, 'core', 'skills')
+  for (const name of existsSync(skills) ? readdirSync(skills).sort() : []) {
+    const dir = join(skills, name)
+    if (!statSync(dir).isDirectory()) continue
+    const mirrored = join(skillsDir, `${skillPrefix}${name}`)
+    for (const file of readdirSync(dir, { recursive: true }).sort()) {
+      if (statSync(join(dir, file)).isFile()) wanted.set(join(mirrored, file), readFileSync(join(dir, file), 'utf8'))
+    }
+    wanted.set(join(mirrored, '.gitignore'), '*\n')
+  }
   return wanted
 }
 
 const isLink = (path) => lstatSync(path, { throwIfNoEntry: false })?.isSymbolicLink() ?? false
 
+// Says whether it wrote a skill file: a session does not scan a skills directory its own hook
+// created, so the sync command then asks it to.
 export function sync(root, kit) {
   const wanted = plan(root, kit)
-  // A symlink in the mirror, the mirror itself included, is removed as a link and never followed:
-  // writing or pruning through it would reach outside .claude/rules/charter/.
-  const mirror = join(root, rulesDir)
-  if (isLink(mirror)) rmSync(mirror)
+  let wroteSkill = false
   for (const [path, content] of wanted) {
+    // A symlink in what the kit owns — the rules mirror, or one skill's directory, that directory
+    // included — is removed as a link and never followed: writing or pruning through it would
+    // reach outside. .claude/skills/ itself is the project's, and is left as it is.
+    const skill = path.startsWith(skillsDir + sep)
+    const owned = skill ? join(root, skillsDir, path.slice(skillsDir.length + 1).split(sep)[0]) : join(root, rulesDir)
+    if (isLink(owned)) rmSync(owned)
     const file = join(root, path)
-    let at = mirror
-    for (const part of relative(mirror, file).split(sep)) {
+    let at = owned
+    for (const part of relative(owned, file).split(sep)) {
       at = join(at, part)
       if (isLink(at)) rmSync(at)
     }
     if (existsSync(file) && readFileSync(file, 'utf8') === content) continue
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, content)
+    wroteSkill ||= skill
   }
   prune(join(root, rulesDir), root, wanted)
+  const skills = join(root, skillsDir)
+  for (const entry of existsSync(skills) ? readdirSync(skills) : []) {
+    if (!entry.startsWith(skillPrefix)) continue
+    const path = join(skills, entry)
+    if (lstatSync(path).isDirectory()) {
+      prune(path, root, wanted)
+      if (readdirSync(path).length === 0) rmdirSync(path)
+    } else {
+      rmSync(path)
+    }
+  }
+  return { wroteSkill }
 }
 
 // Deletes every file under dir the mirror no longer holds, then each directory that leaves empty.

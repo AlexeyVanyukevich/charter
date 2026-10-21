@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # charter sync mirrors each workspace's path-scoped rules into .claude/rules/charter/, prefixed
-# with the workspace's path; deletes what the kit stopped shipping; prints nothing on success;
-# and writes nothing at all when it refuses.
+# with the workspace's path, and core's skills into .claude/skills/charter-<name>/; deletes what
+# the kit stopped shipping; prints nothing on success, unless a hook's run wrote a skill; and
+# writes nothing at all when it refuses.
 set -euo pipefail
 
 tmp="$(mktemp -d)"
@@ -26,9 +27,23 @@ mkdir -p "$kit/core/rules"
 printf '# Core\n\n@rules/zeta.md\n@rules/eta.md\n' > "$kit/core/rules.md"
 printf '# Zeta\n\nZeta body.\n' > "$kit/core/rules/zeta.md"
 printf '# Eta\n\nEta body.\n' > "$kit/core/rules/eta.md"
+# A skill with CRLF endings, copied byte for byte, and a supporting file one directory down.
+mkdir -p "$kit/core/skills/probe/notes"
+printf -- '---\r\ndescription: Probe\r\n---\r\n\r\nProbe body.\r\n' > "$kit/core/skills/probe/SKILL.md"
+printf 'More.\n' > "$kit/core/skills/probe/notes/more.md"
 out="$p/.claude/rules/charter"
+skills="$p/.claude/skills"
+(cd "$p" && git init -q)
 
-run() { (cd "$p" && node node_modules/charter/bin/charter.mjs sync); }
+# By hand, as a person runs it: with no CLAUDE_PROJECT_DIR, even when this check runs in a session.
+run() { (cd "$p" && env -u CLAUDE_PROJECT_DIR node node_modules/charter/bin/charter.mjs sync); }
+# As a hook runs it, the session having started in $1.
+hook() { (cd "$p" && CLAUDE_PROJECT_DIR="$1" node node_modules/charter/bin/charter.mjs sync); }
+# What a hook printed, as JSON asking for a reload: its additionalContext, or nothing.
+reloads() { node -e '
+  const out = JSON.parse(require("fs").readFileSync(0, "utf8")).hookSpecificOutput
+  if (out?.hookEventName !== "SessionStart" || out.reloadSkills !== true) process.exit(1)
+  process.stdout.write(out.additionalContext ?? "")'; }
 manifest() { printf '%s\n' "$1" > "$p/charter.json"; }
 
 # ── the root workspace ────────────────────────────────────────────────────────
@@ -43,6 +58,17 @@ expected=$'---\npaths:\n  - "src/*"\n  - "src/modules/**"\n---\n# Alpha\n\nAlpha
 [ "$(cat "$out/@root/alpha/a.md")" = "$expected" ] ||
   { echo "  ✗ the root workspace's rule is not the kit's:"; cat "$out/@root/alpha/a.md"; exit 1; }
 [ ! -e "$out/@root/gamma" ] || fail "a module with no rules got a directory"
+
+# ── core's skills: under a charter- prefix, each directory ignoring itself ────
+
+cmp -s "$kit/core/skills/probe/SKILL.md" "$skills/charter-probe/SKILL.md" ||
+  { echo "  ✗ core's skill was not mirrored byte for byte:"; cat -v "$skills/charter-probe/SKILL.md"; exit 1; }
+cmp -s "$kit/core/skills/probe/notes/more.md" "$skills/charter-probe/notes/more.md" ||
+  fail "a skill's supporting file was not mirrored"
+[ "$(cat "$skills/charter-probe/.gitignore")" = '*' ] || fail "a mirrored skill does not ignore itself"
+(cd "$p" && git check-ignore -q .claude/skills/charter-probe/SKILL.md &&
+  git check-ignore -q .claude/skills/charter-probe/.gitignore) ||
+  fail "git does not ignore the mirrored skill"
 
 # ── workspaces: prefixed, nested ones too, and the root's mirror gone ──────────
 
@@ -63,12 +89,12 @@ cmp -s "$tmp/c-expected.md" "$out/apps/web/beta/c.md" || { echo "  ✗ a CRLF ru
 # Everything in the mirror is dated 2000, so a write, a delete or a re-created file dates
 # something later. Making the mirror read-only instead would prove nothing as root, which
 # ignores the mode, as a container CI runs.
-find "$out" -exec touch -h -t 200001010000 {} +
+find "$out" "$skills" -exec touch -h -t 200001010000 {} +
 touch -t 200001020000 "$tmp/dated"
-listed="$(cd "$out" && find . | sort)"
+listed="$(cd "$p/.claude" && find . | sort)"
 run >/dev/null || fail "a second run failed"
-[ "$(cd "$out" && find . | sort)" = "$listed" ] || fail "a second run changed which files the mirror holds"
-[ -z "$(find "$out" -newer "$tmp/dated")" ] || fail "a second run wrote files that had not changed"
+[ "$(cd "$p/.claude" && find . | sort)" = "$listed" ] || fail "a second run changed which files the mirror holds"
+[ -z "$(find "$out" "$skills" -newer "$tmp/dated")" ] || fail "a second run wrote files that had not changed"
 
 # ── what the kit or the manifest dropped is deleted ───────────────────────────
 
@@ -82,6 +108,19 @@ run >/dev/null || fail "sync failed after workspaces were dropped"
 # server/api lies inside server, which stays: only its own directory goes.
 [ ! -e "$out/server/api" ] || fail "a dropped nested workspace left its mirror behind"
 [ -f "$out/server/alpha/a.md" ] || fail "dropping a nested workspace took its parent's rules with it"
+
+# A charter- skill the kit does not ship goes, and so does a file the kit dropped from one it does.
+# Every other skill is the project's own.
+mkdir -p "$skills/release" "$skills/charter-gone"
+echo own > "$skills/release/SKILL.md"
+echo old > "$skills/charter-gone/SKILL.md"
+mv "$kit/core/skills/probe/notes" "$tmp/notes"
+run >/dev/null || fail "sync failed after a skill left the kit"
+[ ! -e "$skills/charter-gone" ] || fail "a charter- skill the kit does not ship survived"
+[ ! -e "$skills/charter-probe/notes" ] || fail "a skill file the kit no longer ships survived"
+[ -f "$skills/charter-probe/SKILL.md" ] || fail "removing a skill's file took the skill with it"
+[ "$(cat "$skills/release/SKILL.md")" = own ] || fail "sync touched a project's own skill"
+mv "$tmp/notes" "$kit/core/skills/probe/notes"
 
 # ── nothing outside the mirror is touched ─────────────────────────────────────
 
@@ -124,6 +163,29 @@ run >/dev/null || fail "sync failed over a symlinked mirror"
 [ ! -e "$p/outside-root/server" ] || fail "sync wrote through a symlinked mirror"
 [ ! -L "$out" ] && [ -f "$out/server/alpha/a.md" ] || fail "a symlinked mirror was not replaced by a real one"
 
+# The same for a skill: a symlink as a mirrored skill's directory or file is replaced, and one
+# named charter- that the kit does not ship is removed as a link; neither is written through.
+mkdir "$p/outside-skill"
+echo own > "$p/outside-skill/SKILL.md"
+rm -rf "$skills/charter-probe"
+ln -s "$p/outside-skill" "$skills/charter-probe"
+run >/dev/null || fail "sync failed over a symlinked skill directory"
+[ "$(ls -A "$p/outside-skill")" = SKILL.md ] && [ "$(cat "$p/outside-skill/SKILL.md")" = own ] ||
+  fail "sync wrote through a symlinked skill directory"
+[ ! -L "$skills/charter-probe" ] && cmp -s "$kit/core/skills/probe/SKILL.md" "$skills/charter-probe/SKILL.md" ||
+  fail "a symlinked skill directory was not replaced by the skill"
+rm "$skills/charter-probe/SKILL.md"
+ln -s "$p/outside-skill/SKILL.md" "$skills/charter-probe/SKILL.md"
+run >/dev/null || fail "sync failed over a symlinked skill file"
+[ "$(cat "$p/outside-skill/SKILL.md")" = own ] || fail "sync wrote through a symlink at a skill's path"
+[ ! -L "$skills/charter-probe/SKILL.md" ] || fail "a symlink at a skill's path was not replaced"
+mkdir "$p/outside-stale"
+echo keep > "$p/outside-stale/SKILL.md"
+ln -s "$p/outside-stale" "$skills/charter-stale"
+run >/dev/null || fail "sync failed beside a symlinked charter- skill"
+[ ! -e "$skills/charter-stale" ] && [ ! -L "$skills/charter-stale" ] || fail "a symlinked charter- skill survived"
+[ -f "$p/outside-stale/SKILL.md" ] || fail "sync deleted through a symlinked charter- skill"
+
 # ── sync roots at CLAUDE_PROJECT_DIR, not at the directory it runs in ─────────
 
 rm -rf "$out"
@@ -132,6 +194,18 @@ printed="$( cd "$p/server" && CLAUDE_PROJECT_DIR="$p" node ../node_modules/chart
 [ -f "$out/server/alpha/a.md" ] || fail "sync did not write at CLAUDE_PROJECT_DIR"
 [ ! -e "$p/server/.claude" ] || fail "sync wrote into the directory it was run from"
 [ -z "$printed" ] || fail "a hook's sync at the root printed '$printed'"
+
+# A skills directory a hook creates is not scanned by the session it starts, so a hook's run that
+# wrote a skill asks for a rescan; one that wrote none, and a run by hand, print nothing.
+rm -rf "$skills"
+printed="$(hook "$p")" || fail "a hook's sync failed writing a skill"
+context="$(reloads <<< "$printed")" || fail "a hook's sync that wrote a skill did not ask for a reload: got '$printed'"
+[ -z "$context" ] || fail "a hook's sync at the root added context: '$context'"
+printed="$(hook "$p")" || fail "a second hook's sync failed"
+[ -z "$printed" ] || fail "a hook's sync that wrote no skill printed '$printed'"
+rm -rf "$skills"
+printed="$(run)" || fail "sync by hand failed writing a skill"
+[ -z "$printed" ] && [ -f "$skills/charter-probe/SKILL.md" ] || fail "sync by hand that wrote a skill printed '$printed'"
 
 # ── from a workspace: the root found by walking up, and core printed ──────────
 
@@ -146,6 +220,12 @@ printed="$( cd "$p" && CLAUDE_PROJECT_DIR="$p/server/api" node node_modules/char
 expected="charter: this session started in server/api/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow."
 expected+=$'\n\n# Zeta\n\nZeta body.\n\n# Eta\n\nEta body.'
 [ "$printed" = "$expected" ] || { echo "  ✗ sync from a workspace did not print core in its index's order:"; echo "$printed"; exit 1; }
+
+# The same run writing a skill carries core in the reload request's context, which the session reads.
+rm -rf "$skills"
+printed="$(hook "$p/server/api")" || fail "a workspace hook's sync failed writing a skill"
+context="$(reloads <<< "$printed")" || fail "a workspace hook's sync that wrote a skill did not ask for a reload"
+[ "$context" = "$expected" ] || { echo "  ✗ the reload request did not carry core:"; echo "$context"; exit 1; }
 
 # By hand there is no session to read core, so a run from a workspace syncs the root, silently.
 rm -rf "$out"
@@ -167,7 +247,7 @@ refuses() {
 
 # Every refusal below starts from a mirror that a run would change: a premature write adds
 # server/alpha/a.md, a premature prune deletes the stale file. Nothing may move.
-rm -rf "$out"
+rm -rf "$out" "$skills/charter-probe"
 mkdir -p "$out/server/stale"
 echo stale > "$out/server/stale/x.md"
 
@@ -198,6 +278,6 @@ err="$( (cd "$p" && node node_modules/charter/bin/charter.mjs sync extra) 2>&1 >
   fail "sync accepted an argument"
 grep -q 'no arguments' <<< "$err" || fail "sync with an argument did not say it takes none: got '$err'"
 
-echo "  ✓ sync mirrors and prefixes each workspace's rules, deletes what was dropped, finds the"
-echo "    root from a workspace and prints core there, prints nothing at the root, and writes"
-echo "    nothing when refusing; one run took ${took} ms"
+echo "  ✓ sync mirrors and prefixes each workspace's rules and core's skills, deletes what was"
+echo "    dropped, finds the root from a workspace and prints core there, asks a session to reload"
+echo "    a skill it wrote, and writes nothing when refusing; one run took ${took} ms"
