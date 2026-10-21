@@ -11,6 +11,20 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## `charter release` flags dated documents as stray copies of the version
+
+- Where: `bin/release.mjs`, `cut`, the `git grep -F` for the old version
+- Found: 2026-10-21, cutting 3.4.0; the first real cut with the command
+- Priority: P5 — the report changes nothing, and reading it costs a minute a release
+- Problem: every tracked file that holds the old version, outside `package.json`, its lockfile
+  and `release.files`, is reported as "still holds 3.3.1: check it". The 3.4.0 cut reported
+  `docs/backlog.md` and `docs/superpowers/specs/2026-10-21-release-design.md`, which mention
+  3.3.1 as history. Specs and backlog entries are dated records, so the list only grows.
+- Impact: whoever cuts a release, or the skill, rereads the same history each time, and a real
+  stray copy is easier to miss among them. Leaving out `docs/superpowers/` and
+  `docs/backlog.md` would fix it for the kit's layout; a `release.ignore` list in
+  `charter.json` would fix it for any project's.
+
 ## `charter release` has never run on Windows
 
 - Where: `bin/release.mjs`, `gates` (`release.verify` through `bash -c`) and `cut` (`npm version`
