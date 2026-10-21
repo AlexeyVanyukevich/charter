@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# charter release: the gates, the commits since the last tag and the version they propose.
+# charter release: the gates, the commits since the last tag and the version they propose; the
+# notes' skeleton; and the cut — the bump, the commit and the tag, never a push.
 # Every case runs in a repository of its own, in a temporary directory, with a bare repository
 # as its origin, so nothing here reaches a network or this repository's own tags.
 set -euo pipefail
@@ -22,7 +23,7 @@ fresh() {
     git config user.email check@example.com
     git config user.name check
     git remote add origin "$tmp/$n/origin.git"
-    printf '{ "name": "app", "version": "1.2.3" }\n' > package.json
+    printf '{\n  "name": "app",\n  "version": "1.2.3"\n}\n' > package.json
     git add package.json && git commit -qm 'chore: release 1.2.3'
     git tag v1.2.3
     git commit -q --allow-empty -m 'fix: keep the session'
@@ -149,6 +150,88 @@ grep -qF 'Move the dependency to `^1.3.0`' "$tmp/notes" || fail "a level given d
 err="$(release notes banana 2>&1 >/dev/null)" && fail "charter release notes accepted 'banana'"
 grep -qF 'banana' <<< "$err" || fail "refusing a version, charter release notes did not name it: $err"
 
+# ── the cut: every copy of the version, one commit through the commit rule, a tag, no push ──
+
+# A project as the kit leaves one: a lockfile, the README's install range listed in release.files,
+# the commit-msg hook need_hooks installs, and a document that only mentions the version.
+cut_project() {
+  fresh
+  (
+    cd "$r"
+    npm install --package-lock-only --ignore-scripts --offline --silent
+    printf 'Install: "app": "^1.2.3"\n' > README.md
+    printf 'Since 1.2.3 the session is kept.\n' > history.md
+    printf '{ "workspaces": {}, "release": { "files": ["README.md"] } }\n' > charter.json
+    git add -A && git commit -qm 'chore: list the release files' && git push -q origin main
+    mkdir -p "../hooks"
+    printf '#!/usr/bin/env bash\nexec bash "%s/core/hooks/commit-msg" "$1"\n' "${charter%/bin/charter.mjs}" > ../hooks/commit-msg
+    chmod +x ../hooks/commit-msg
+    git config core.hooksPath "$PWD/../hooks"
+  )
+}
+state() { (cd "$r" && git rev-parse HEAD && git tag && git status --porcelain && git ls-remote origin); }
+
+cut_project
+commit 'feat(lib): add need_tools'
+remote="$(cd "$r" && git ls-remote origin)"
+out="$(release 1.3.0 2>&1)" || { echo "  ✗ charter release 1.3.0 failed:"; echo "$out"; exit 1; }
+[ "$(cd "$r" && git log -1 --format=%s)" = 'chore: release 1.3.0' ] || fail "the release commit's subject is not 'chore: release 1.3.0'"
+[ "$(cd "$r" && git show --name-only --format= HEAD | sort | tr '\n' ' ')" = 'README.md package-lock.json package.json ' ] ||
+  fail "the release commit holds $(cd "$r" && git show --name-only --format= HEAD | tr '\n' ' '), not the version's copies alone"
+[ "$(cd "$r" && git show HEAD -- package.json | grep '^[-+] ')" = $'-  "version": "1.2.3"\n+  "version": "1.3.0"' ] ||
+  { echo "  ✗ package.json changed beyond its version:"; (cd "$r" && git show HEAD -- package.json); exit 1; }
+grep -qF '"version": "1.3.0"' "$r/package-lock.json" && ! grep -qF '"version": "1.2.3"' "$r/package-lock.json" ||
+  fail "the lockfile's version was not bumped"
+[ "$(cat "$r/README.md")" = 'Install: "app": "^1.3.0"' ] || fail "a listed file's version was not bumped: $(cat "$r/README.md")"
+grep -qF 'history.md' <<< "$out" || fail "an unlisted file still holding 1.2.3 was not reported: $out"
+[ "$(cat "$r/history.md")" = 'Since 1.2.3 the session is kept.' ] || fail "an unlisted file was changed"
+[ "$(cd "$r" && git cat-file -t v1.3.0)" = commit ] || fail "the tag is not a lightweight tag"
+[ "$(cd "$r" && git rev-parse v1.3.0)" = "$(cd "$r" && git rev-parse HEAD)" ] || fail "the tag is not on the release commit"
+[ "$(cd "$r" && git ls-remote origin)" = "$remote" ] || fail "charter release pushed"
+grep -qF 'git push origin main v1.3.0' <<< "$out" || fail "charter release did not say how to push: $out"
+# A level bumps the last tag's version.
+commit 'fix: after'
+out="$(release patch 2>&1)" || { echo "  ✗ charter release patch failed:"; echo "$out"; exit 1; }
+[ "$(cd "$r" && git describe --tags)" = v1.3.1 ] || fail "charter release patch did not tag v1.3.1"
+
+# With npm workspaces, the root's version and its entries in the lockfile move; a workspace's do not.
+fresh
+(
+  cd "$r"
+  printf '{\n  "name": "root",\n  "version": "1.2.3",\n  "workspaces": ["packages/a"]\n}\n' > package.json
+  mkdir -p packages/a && printf '{\n  "name": "a",\n  "version": "0.0.1"\n}\n' > packages/a/package.json
+  npm install --package-lock-only --ignore-scripts --offline --silent
+  git add -A && git commit -qm 'build: split into workspaces' && git push -q origin main
+)
+release minor >/dev/null 2>&1 || fail "charter release minor failed in an npm workspaces project"
+(cd "$r" && node -e '
+  const lock = require("./package-lock.json"), a = require("./packages/a/package.json")
+  const ok = lock.version === "1.3.0" && lock.packages[""].version === "1.3.0" &&
+    lock.packages["packages/a"].version === "0.0.1" && a.version === "0.0.1"
+  process.exit(ok ? 0 : 1)') || fail "in an npm workspaces project the lockfile's versions are wrong"
+
+# Each refusal writes nothing: no file, no commit, no tag, no push.
+# name | what turns a fresh cut_project into that state | version | what the refusal says
+while IFS='|' read -r name setup version expect; do
+  [ -n "$name" ] || continue
+  cut_project
+  (cd "$r" && eval "$setup")
+  before="$(state)"
+  out="$(release "$version" 2>&1)" && { echo "  ✗ charter release $version accepted $name:"; echo "$out"; exit 1; }
+  grep -qF -- "$expect" <<< "$out" || { echo "  ✗ refusing $name, charter release did not say '$expect':"; echo "$out"; exit 1; }
+  [ "$(state)" = "$before" ] || fail "charter release wrote something while refusing $name"
+done <<'ROWS'
+a failed gate|echo x > dirty.txt|1.3.0|✗ the working tree is clean
+the last tag's version|:|1.2.3|1.2.3 is not above
+a lower version|:|1.0.0|1.0.0 is not above
+a tag that exists off main|git switch -q -c side && git commit -q --allow-empty -m 'fix: side' && git tag v1.3.0 && git switch -q main && git branch -q -D side|1.3.0|v1.3.0 already exists
+a listed file without the version|printf 'Install: "app": "^1.2.2"\n' > README.md && git commit -qam 'docs: old range' && git push -q origin main|1.3.0|README.md does not hold 1.2.3
+a listed file that is missing|git rm -q README.md && git commit -qm 'docs: drop the readme' && git push -q origin main|1.3.0|README.md does not hold 1.2.3
+package.json ahead of the tag|sed -i.bak 's/1.2.3/1.2.4/' package.json && rm package.json.bak && git commit -qam 'chore: bump by hand' && git push -q origin main|1.3.0|package.json says 1.2.4
+not a version|:|banana|banana
+ROWS
+
 echo "  ✓ charter release proposes the version from the commits since the last tag, shows them and"
 echo "    every gate, refuses each failed gate with its cause, and changes nothing; its notes"
-echo "    skeleton sorts the commits into sections and suggests a title"
+echo "    skeleton sorts the commits into sections and suggests a title; and the cut bumps every"
+echo "    listed copy, commits through the commit rule, tags, reports stray copies, and never pushes"
