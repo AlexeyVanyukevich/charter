@@ -1,5 +1,6 @@
 // charter release: the gates a release must pass, the commits since the last tag, and the
-// version they propose. Writes nothing. Spec: docs/superpowers/specs/2026-10-21-release-design.md.
+// version they propose; and a skeleton of the release's notes. Neither writes anything. Spec:
+// docs/superpowers/specs/2026-10-21-release-design.md.
 
 import { execFileSync, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -153,4 +154,34 @@ export function show(root) {
     console.log(because.length > 0 ? `  ${level}, for: ${because.join('; ')}` : '  patch: nothing new and nothing breaking')
   }
   return results.every((result) => result.ok !== false)
+}
+
+// The version a release takes: one given outright, or the last one bumped by a level.
+export function target(previous, wanted) {
+  if (['patch', 'minor', 'major'].includes(wanted)) return bump(previous, wanted)
+  if (semver.test(wanted)) return wanted
+  throw new KitError(`"${wanted}" is not a version.`, 'Give X.Y.Z, or patch, minor or major.')
+}
+
+// Prints the notes' skeleton to stdout, and to stderr the title's form and every commit the
+// skeleton left out, so that > notes.md captures the notes alone. The person writes them up.
+export function notes(root, wanted) {
+  const { previous, commits, proposed } = survey(root)
+  const version = wanted === undefined ? proposed : target(previous, wanted)
+  const news = commits.filter((subject) => kind(subject).breaking || kind(subject).type === 'feat')
+  const fixes = commits.filter((subject) => !news.includes(subject) && kind(subject).type === 'fix')
+  const sections = []
+  if (news.length > 0) sections.push(`## What's new\n\n${news.map((subject) => `- ${subject}`).join('\n')}`)
+  if (fixes.length > 0) sections.push(`## Fixes\n\n${fixes.map((subject) => `- ${subject}`).join('\n')}`)
+  sections.push(
+    '## Known gaps\n\n<What a consumer can hit that this release does not fix. Delete this section if there is nothing.>',
+  )
+  sections.push(
+    `## Upgrading\n\nMove the dependency to \`^${version}\` and run \`npm install\`. <What else a consumer has to change, or: Nothing else changes.>`,
+  )
+  console.log(sections.join('\n\n'))
+  console.error(`Title: v${version} — <what a consumer would notice>`)
+  for (const subject of commits.filter((subject) => !news.includes(subject) && !fixes.includes(subject))) {
+    console.error(`Left out: ${subject}`)
+  }
 }

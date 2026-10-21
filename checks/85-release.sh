@@ -110,5 +110,45 @@ fresh
   git add -A && git commit -qm 'docs: archive x' && git push -q origin main)
 release >/dev/null 2>&1 || fail "an archived plan stopped the release"
 
+# ── the notes' skeleton: stdout is the notes, stderr the title and what was left out ──
+
+fresh
+commit 'docs: say how' 'feat(lib): add need_tools' 'feat!: drop the old path'
+before="$(cd "$r" && git rev-parse HEAD && git tag && git status --porcelain)"
+release notes > "$tmp/notes" 2> "$tmp/err" || fail "charter release notes failed: $(cat "$tmp/err")"
+cat > "$tmp/expected" <<'NOTES'
+## What's new
+
+- feat!: drop the old path
+- feat(lib): add need_tools
+
+## Fixes
+
+- fix: keep the session
+
+## Known gaps
+
+<What a consumer can hit that this release does not fix. Delete this section if there is nothing.>
+
+## Upgrading
+
+Move the dependency to `^2.0.0` and run `npm install`. <What else a consumer has to change, or: Nothing else changes.>
+NOTES
+diff "$tmp/expected" "$tmp/notes" >/dev/null || { echo "  ✗ the notes' skeleton is not the expected one:"; diff "$tmp/expected" "$tmp/notes"; exit 1; }
+grep -qxF 'Title: v2.0.0 — <what a consumer would notice>' "$tmp/err" || fail "the notes did not suggest a title on stderr: $(cat "$tmp/err")"
+grep -qxF 'Left out: docs: say how' "$tmp/err" || fail "the notes did not list what they left out on stderr: $(cat "$tmp/err")"
+[ "$(cd "$r" && git rev-parse HEAD && git tag && git status --porcelain)" = "$before" ] || fail "charter release notes changed the repository"
+
+# A version given decides the number; a release with no feat has no "What's new".
+fresh
+release notes 1.2.9 > "$tmp/notes" 2>/dev/null || fail "charter release notes 1.2.9 failed"
+grep -q "What's new" "$tmp/notes" && fail "a release with no feat got a What's new section"
+grep -qF 'Move the dependency to `^1.2.9`' "$tmp/notes" || fail "the version given did not reach Upgrading"
+release notes minor > "$tmp/notes" 2>/dev/null || fail "charter release notes minor failed"
+grep -qF 'Move the dependency to `^1.3.0`' "$tmp/notes" || fail "a level given did not bump the last tag's version"
+err="$(release notes banana 2>&1 >/dev/null)" && fail "charter release notes accepted 'banana'"
+grep -qF 'banana' <<< "$err" || fail "refusing a version, charter release notes did not name it: $err"
+
 echo "  ✓ charter release proposes the version from the commits since the last tag, shows them and"
-echo "    every gate, refuses each failed gate with its cause, and changes nothing"
+echo "    every gate, refuses each failed gate with its cause, and changes nothing; its notes"
+echo "    skeleton sorts the commits into sections and suggests a title"
