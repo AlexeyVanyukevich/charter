@@ -154,6 +154,9 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
   # the repository root and was refused the read: the git status in its context lists this
   # uncommitted consumer's root directories by name, and the workspace only as `./`. An answer
   # alone cannot tell a refused read from a rule that failed to load; the transcript can.
+  #
+  # On Windows, Git Bash hands node the consumer as C:/…, and a session names the same file as
+  # C:\…, or now and then as the /c/… it was given; each is brought to C:/… before comparing.
   session() {
     local id file transcript
     file="$consumer/$1/$2"
@@ -166,7 +169,8 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
     [ -n "$transcript" ] || { echo "  ✗ run $run, started $at: no transcript for session $id, so what it loaded is unknown"; exit 1; }
     seen="$(node -e '
       const [transcript, consumer] = process.argv.slice(1)
-      const within = (path, dir) => (path.replaceAll("\\", "/").startsWith(dir + "/") ? path.replaceAll("\\", "/").slice(dir.length + 1) : null)
+      const slashed = (path) => path.replaceAll("\\", "/").replace(/^\/([a-z])\//i, "$1:/").replace(/^[a-z]:/, (drive) => drive.toUpperCase())
+      const within = (path, dir) => (slashed(path).startsWith(slashed(dir) + "/") ? slashed(path).slice(slashed(dir).length + 1) : null)
       for (const line of require("fs").readFileSync(transcript, "utf8").split("\n")) {
         let entry
         try { entry = JSON.parse(line) } catch { continue }
