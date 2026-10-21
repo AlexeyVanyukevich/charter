@@ -11,6 +11,19 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## No release reaches the private registry
+
+- Where: `README.md`, "Install" and "Releasing"
+- Found: 2026-10-20, while cutting 3.3.1; a release is a tag and a GitHub release, and nothing
+  publishes the package
+- Priority: P2 — the README sends every consumer to the registry first
+- Problem: "Install" calls the private registry "the normal way", but no step in "Releasing"
+  runs `npm publish`, and no workflow does it on a tag. Follow "Install" as written and the
+  registry has no `charter` of this version, or none at all.
+- Impact: a consumer following the README fails to install, or, with the registry line missing
+  from `.npmrc`, installs the unrelated public `charter`. Either publish each release to the
+  registry, or make the git form the normal way in the README until it is.
+
 ## The kit needs Git Bash on Windows
 
 - Where: the session-start hook `charter init` writes (`hookCommand` in `bin/charter.mjs`),
