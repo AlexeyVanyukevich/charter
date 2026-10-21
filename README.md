@@ -105,7 +105,7 @@ with `CLAUDE_CODE_GIT_BASH_PATH`. Then start a new session.
 
 | Module | Kind | For | Brings |
 | ------ | ---- | --- | ------ |
-| `core` | — | every project | six rules, loaded always; the commit-msg hook; `lib.sh`; ignore files |
+| `core` | — | every project | six rules, loaded always; the `charter-release` skill; the commit-msg hook; `lib.sh`; ignore files |
 | `backend` | domain | HTTP services | three rules, by path |
 | `frontend` | domain | web interfaces | two rules, by path; the `frontend-design` plugin |
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
@@ -178,8 +178,9 @@ workspace already recorded — its directory gone, a module the kit no longer ha
 too. Every refusal comes before anything is written.
 
 Commit `charter.json`, `CLAUDE.md`, `.gitignore`, and every `.claude/settings.json` it wrote —
-the root's and each workspace's. **Never commit `.claude/rules/charter/`:** it is a mirror that
-`sync` rebuilds at every session start.
+the root's and each workspace's. **Never commit `.claude/rules/charter/` or
+`.claude/skills/charter-*/`:** they are mirrors that `sync` rebuilds at every session start. Each
+skill directory holds a `.gitignore` of `*`, so git ignores it with no line of the project's.
 
 A session started in a recorded workspace reads what one started at the root reads: its own hook
 syncs the root's mirror, whose rules load from there too, and prints `core`, which the root
@@ -200,7 +201,8 @@ Rules load in three tiers:
   a workspace, through the workspace's sync hook.
 - **By path** — every other module's rules. A rule loads once Claude reads a file that matches
   its `paths:`. `charter sync` delivers them.
-- **By task** — none yet. Skills arrive with the requirements release.
+- **By task** — skills, which load when a session's task calls for one. `core` ships one,
+  `charter-release`, under "Cutting a release" below.
 
 `charter sync` takes no arguments. Its root is the nearest directory holding `charter.json`,
 looking upwards from `CLAUDE_PROJECT_DIR`, which a hook sets, or else from the working directory.
@@ -213,6 +215,15 @@ mirror at `.claude/rules/charter/<workspace>/<module>/<rule>.md`, with the root 
 It deletes mirrored files the kit no longer ships. A symlink inside the mirror, or as the mirror,
 is removed as a link and never followed. An invalid manifest, an unknown module or a
 missing workspace directory is refused before anything is written, with the cause on stderr.
+
+It mirrors `core`'s skills once, at the root, to `.claude/skills/charter-<name>/`: a session
+finds skills from where it starts up to the repository root, so workspaces need no copy. **The
+`charter-` prefix is the kit's:** `sync` deletes any `.claude/skills/charter-*` the kit does not
+ship, and touches nothing else in `.claude/skills/`. A session does not scan a skills directory
+its own hook created, so a hook's run that wrote a skill prints
+`{"hookSpecificOutput":{"hookEventName":"SessionStart","reloadSkills":true}}` instead of its usual
+output, carrying a workspace's `core` as `additionalContext`. Without it, a fresh clone's first
+session has no skill.
 
 | Module | Rule | `paths:` | Covers |
 | ------ | ---- | -------- | ------ |
@@ -494,6 +505,59 @@ cp node_modules/charter/core/ignore/prettierignore .prettierignore
 These are **copied, not referenced** — neither format has an import or extends mechanism. They
 are starting points a project appends its own entries to, and they change rarely.
 
+## Cutting a release
+
+A release is what `core`'s commit rule says: one `chore: release X.Y.Z` commit on `main` and the
+`vX.Y.Z` tag on it. `charter release` does the mechanical part, and a person can run all of it
+without an agent. The `charter-release` skill runs the same commands in a session and drafts the
+title and notes. Either way, nothing is committed until the number, the title and the notes are
+agreed.
+
+```bash
+npx --no charter release                              # gates, commits since the last tag, a proposal
+npx --no charter release notes 1.4.0 > /tmp/notes.md  # the notes' skeleton; title form on stderr
+npx --no charter release 1.4.0                        # bump, commit, tag — or patch, minor, major
+git push origin main v1.4.0
+gh release create v1.4.0 --title "v1.4.0 — <what a consumer would notice>" --notes-file /tmp/notes.md
+```
+
+The first two write nothing. The third refuses, before writing anything, unless every gate
+passes: on `main`; a clean working tree; level with `origin/main` after a fetch, where an `origin`
+exists; no plan in `docs/superpowers/plans/` outside `archive/`; a commit since the last tag; and
+`release.verify`, when set. It also refuses a version not above the last tag's, a tag that
+exists, a `package.json` that does not hold the last tag's version, and a listed file that does
+not hold it either. It never pushes.
+
+**The proposal reads commit types only:** a `!` before the colon is major, a `feat` minor,
+anything else patch. The project decides, in a "Releasing" section of its own that the skill
+reads first.
+
+**Every copy of the version** is `package.json`, its lockfile, through `npm version` with
+scripts off, and the files `charter.json` lists:
+
+```json
+{
+  "workspaces": { ".": ["backend", "typescript", "node", "vitest"] },
+  "release": { "verify": "npm test", "files": ["README.md"] }
+}
+```
+
+Both keys are optional. `verify` runs through bash at the root, its output on stderr. A tracked
+file outside `files` that still holds the old version is listed after the cut, not changed: a
+search for a version also finds text that only mentions it.
+
+**The title** is `vX.Y.Z — <what a consumer would notice>`. **The notes** hold, in order:
+*What's new* (minor and major only), *Fixes*, *Known gaps* (only when a consumer can hit one),
+and *Upgrading* — always, last, and never empty: at its least, the version to move to and that
+nothing else changes. Keep the notes file outside the repository; one inside dirties the tree,
+and the cut refuses.
+
+**`/charter-release`**, or asking a session for a release, follows these steps. It asks when the
+number is in doubt, shows the title and the whole notes, and waits; a person's own text is used
+as written. Pushing and creating the GitHub release each wait for their own yes.
+
+No step publishes to a package registry.
+
 ## Verification
 
 ```bash
@@ -529,10 +593,11 @@ every glob matched.
 
 ## Releasing
 
-A release is one `chore: release X.Y.Z` commit on `main` and the `vX.Y.Z` tag on it. The commit
-changes the version in two places and nothing else: `"version"` in `package.json`, and the
-`^X.Y.Z` range under Install, above. The git form names no version; whoever copies it picks the
-newest tag.
+The kit is released as "Cutting a release" says, with `node bin/charter.mjs release` where a
+consumer writes `npx --no charter release`, or with `/charter-release`. Its `charter.json` sets
+`release.verify` to `./check` and lists `README.md`, so the release commit changes the version in
+two places and nothing else: `"version"` in `package.json`, and the `^X.Y.Z` range under Install,
+above. The git form names no version; whoever copies it picks the newest tag.
 
 **The README's range moves with every release, patch included.** A consumer copies the install
 line as written, and a range left behind installs the previous release without anything failing
@@ -541,9 +606,6 @@ for them. `./check 60` fails until the range matches `"version"`.
 Pick the number by what a consumer has to do. Reworded rules or a fixed function: patch. A new
 rule, module or `lib.sh` function: minor. A path a consumer writes that moves or disappears:
 major, with a migration section like the ones below.
-
-The GitHub release is titled `vX.Y.Z — <what changed>` and ends with an "Upgrading" section that
-says what a consumer has to change, or that nothing has to.
 
 ## Migrating from 2.x
 

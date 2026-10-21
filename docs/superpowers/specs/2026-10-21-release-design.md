@@ -1,6 +1,6 @@
 # charter — cutting a release
 
-Status: **approved**, 2026-10-21.
+Status: **built**, 2026-10-21.
 
 > **This is a decision record, not a description of the system.**
 >
