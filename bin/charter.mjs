@@ -288,15 +288,21 @@ if (options.command === 'sync') {
   // way the root is the nearest directory upwards that holds charter.json.
   const start = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd())
   const root = guard(() => findRoot(start))
-  guard(() => sync(root, kit))
+  const { wroteSkill } = guard(() => sync(root, kit))
   // Below the root, the root CLAUDE.md's import of core does not reach the session, and the hook's
   // stdout does. Spec: docs/superpowers/specs/2026-10-15-workspace-sessions-design.md.
-  if (process.env.CLAUDE_PROJECT_DIR && start !== root) {
-    const where = relative(root, start).split(sep).join('/')
-    console.log(
-      `charter: this session started in ${where}/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow.`,
-    )
-    console.log(`\n${coreText(kit)}`)
+  const hooked = Boolean(process.env.CLAUDE_PROJECT_DIR)
+  const where = relative(root, start).split(sep).join('/')
+  const context =
+    hooked && start !== root
+      ? `charter: this session started in ${where}/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow.\n\n${coreText(kit)}`
+      : undefined
+  // A skills directory this hook created is not scanned by its session unless the hook asks.
+  if (hooked && wroteSkill) {
+    const output = { hookEventName: 'SessionStart', reloadSkills: true, ...(context && { additionalContext: context }) }
+    console.log(JSON.stringify({ hookSpecificOutput: output }))
+  } else if (context) {
+    console.log(context)
   }
   process.exit(0)
 }
