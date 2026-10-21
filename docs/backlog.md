@@ -24,6 +24,20 @@ turning it on.
   from `.npmrc`, installs the unrelated public `charter`. Either publish each release to the
   registry, or make the git form the normal way in the README until it is.
 
+## `./check 40` can fail on a session that read nothing, and hides why
+
+- Where: `checks/40-rules.sh`, `session()`, the "asked to read … the session did not" failure
+- Found: 2026-10-21, running `./check` on a tree whose only changes were documents; the rerun
+  passed
+- Priority: P3 — a full `./check` gates every release, and this failure names no cause
+- Problem: run 1, started at the root, left a transcript with no `Read` call at all: the
+  message ended "Saw:" with nothing after it. The message prints what the transcript shows but
+  not `$answer`, the session's own output, so an API error, a refusal and a model that skipped
+  the instruction look the same.
+- Impact: `./check` failed this way once in four runs of check 40 on 2026-10-20 and 21, with
+  nothing to blame, and each failure costs a rerun of the live sessions. Print `$answer` in this message first; the cause, and
+  whether one retry is honest, follow from what it says.
+
 ## The kit needs Git Bash on Windows
 
 - Where: the session-start hook `charter init` writes (`hookCommand` in `bin/charter.mjs`),
