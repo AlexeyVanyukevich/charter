@@ -11,6 +11,18 @@ Some entries concern the `superpowers` plugin rather than the kit. They are reco
 the plugin still loads in this repository and in projects onboarded before the kit stopped
 turning it on.
 
+## `charter release` has never run on Windows
+
+- Where: `bin/release.mjs`, `gates` (`release.verify` through `bash -c`) and `cut` (`npm version`
+  with `shell` on `win32`)
+- Found: 2026-10-21, while building the command on macOS; `./check 85` has run nowhere else
+- Priority: P4 — a release is cut by one person, on one machine, about once a week
+- Problem: `verify` needs bash on the `PATH`, which Git Bash gives only to its own shell, and
+  `npm` is `npm.cmd` there, reached only through a shell. Neither path has run.
+- Impact: on Windows outside Git Bash, `charter release` may refuse every release with
+  "release.verify failed", or fail at the bump after the gates passed. Run `./check 85` on
+  Windows with and without Git Bash.
+
 ## No release reaches the private registry
 
 - Where: `README.md`, "Install" and "Releasing"
