@@ -1,0 +1,4 @@
+{
+  "workspaces": { ".": [] },
+  "release": { "verify": "./check", "files": ["README.md"] }
+}
