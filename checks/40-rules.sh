@@ -53,6 +53,20 @@ for f in "$kit"/core/rules/*.md "$kit"/domains/*/rules/*.md "$kit"/stacks/*/rule
   checked=$((checked + 1))
 done
 
+# A skill loads only when its task calls for it, so it keeps a budget of its own, and a
+# description, which is all a session sees of it until then. sync mirrors core's alone.
+[ -f "$kit/core/skills/release/SKILL.md" ] || { echo "  ✗ core ships no release skill"; exit 1; }
+skills=0
+for f in "$kit"/core/skills/*/SKILL.md; do
+  lines="$(wc -l < "$f" | tr -d ' ')"
+  [ "$lines" -le 100 ] || { echo "  ✗ ${f#"$kit"/} is $lines lines; the limit is 100"; exit 1; }
+  awk 'NR == 1 { fm = ($0 == "---"); next } fm && $0 == "---" { exit } fm && /^description: ./ { found = 1 } END { exit !found }' "$f" ||
+    { echo "  ✗ ${f#"$kit"/} has no description in its frontmatter"; exit 1; }
+  skills=$((skills + 1))
+done
+[ -z "$(find "$kit/domains" "$kit/stacks" -type d -name skills 2>/dev/null)" ] ||
+  { echo "  ✗ a module ships skills, which sync does not mirror"; exit 1; }
+
 # Module names are unique: charter.json names a module, not its directory.
 dupes="$(cd "$kit" && ls -d domains/*/ stacks/*/ | awk -F/ '{ print $2 }' | sort | uniq -d)"
 [ -z "$dupes" ] || { echo "  ✗ module names used twice: $dupes"; exit 1; }
@@ -179,11 +193,21 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
         { echo "  ✗ run $run, started $at: http.md loaded in a routes file, but the answer lacked $core_fact or $path_fact. Got: $answer"; exit 1; }
     done
   done
+
+  # init's sync wrote the skill; a fresh clone's first session gets it only because the hook,
+  # having written it again, asks for the skills to be rescanned.
+  [ -f "$consumer/.claude/skills/charter-release/SKILL.md" ] || { echo "  ✗ init did not mirror the release skill"; exit 1; }
+  rm -rf "$consumer/.claude/skills"
+  answer="$( (cd "$consumer" && claude -p "List the name of every skill available to you whose name contains 'release', one per line, or NONE. Nothing else." \
+    --disallowedTools Bash Grep Glob Read Edit Write Agent WebFetch WebSearch < /dev/null 2>&1 || true) | tr -d '`')"
+  grep -qx 'charter-release' <<< "$answer" ||
+    { echo "  ✗ a session whose hook wrote the release skill did not list it. Got: $answer"; exit 1; }
   echo "  ✓ three times over, a real session started at the root and one started in a workspace each"
-  echo "    read core at once and http.md only in a matching file, as answered and as each transcript shows"
+  echo "    read core at once and http.md only in a matching file, as answered and as each transcript shows;"
+  echo "    and a fresh session lists the release skill its hook wrote"
 else
   echo "  · session check skipped (no claude CLI, or CHARTER_SKIP_SESSION_CHECK set)"
 fi
 
 echo "  ✓ $checked rules: core loads always ($always lines), the rest by path; a backend"
-echo "    workspace reads at most $backend_worst, a UI one $ui_worst"
+echo "    workspace reads at most $backend_worst, a UI one $ui_worst; $skills skill by task"
