@@ -15,6 +15,7 @@ Alongside the content, state:
   instruction, and why. This is what a reader cannot reconstruct alone.
 - **What is still unproven** — anything documented but untested, skipped, or working only
   on the machine it was written on.
+- **What was raised** — a link to each issue the session opened, which no diff shows.
 
 **A passing suite is not approval.** Checks prove the code does what the checks say. They
 cannot tell whether the work was the work that was wanted.
