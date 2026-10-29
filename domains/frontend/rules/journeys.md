@@ -11,7 +11,7 @@ usually the bug.
 
 **Every page state a journey reaches is scanned with axe-core,** tagged `wcag2a`, `wcag2aa`,
 `wcag21a`, `wcag21aa`, `wcag22aa`, and any violation fails the journey. A known failure is
-excluded for one selector with a backlog entry, never switched off for the suite.
+excluded for one selector with an issue raised for it, never switched off for the suite.
 
 **Each flow has a journey driven by the keyboard alone,** asserting where focus lands after
 each step that moves it.

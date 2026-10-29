@@ -24,6 +24,7 @@ pass||fix(rules)!: rename a rule
 pass||fix(plugins-2): say what a scope may hold
 pass||revert: undo the release commit
 pass||fix: `need_env` returns non-zero once
+pass||fix(release): run verify through git's bash, fixes #45
 pass||fix: add x\n# Please enter the commit message for your changes.\n#\n# On branch main
 pass||fix: add x\n\n\n
 pass||fix: add x\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x\n+Body. Long.
