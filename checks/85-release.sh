@@ -163,7 +163,6 @@ cut_project() {
     printf 'Since 1.2.3 the session is kept.\n' > history.md
     # Dated records: they mention versions as history, and are never copies of one.
     mkdir -p docs/superpowers/specs docs/superpowers/plans/archive
-    printf 'Found while cutting 1.2.3.\n' > docs/backlog.md
     printf '1.2.3 showed the gap.\n' > docs/superpowers/specs/2026-01-01-x-design.md
     printf 'Before 1.2.3.\n' > docs/superpowers/plans/archive/2026-01-01-x.md
     printf '{ "workspaces": {}, "release": { "files": ["README.md"] } }\n' > charter.json
