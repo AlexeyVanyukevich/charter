@@ -163,7 +163,7 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
     [ "$1" = . ] && file="$consumer/$2"
     id="$(node -e 'console.log(crypto.randomUUID())')"
     rm -rf "$consumer/.claude/rules/charter"
-    answer="$( (cd "$consumer/$1" && claude -p "First use Read on $file and nothing else. Then answer from your loaded instructions only, never by searching files. Line 1: the date the backlog rule's example entry was found, or NONE. Line 2: the error code for a write whose Origin is not the app's own, or NONE. Nothing else." \
+    answer="$( (cd "$consumer/$1" && claude -p "First use Read on $file and nothing else. Then answer from your loaded instructions only, never by searching files. Line 1: the date the backlog rule's example issue was found, or NONE. Line 2: the error code for a write whose Origin is not the app's own, or NONE. Nothing else." \
       --session-id "$id" --disallowedTools Bash Grep Glob Edit Write Agent WebFetch WebSearch < /dev/null 2>&1 || true) | tr -d '`')"
     transcript="$(find "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects" -name "$id.jsonl" 2>/dev/null | head -n 1 || true)"
     [ -n "$transcript" ] || { echo "  ✗ run $run, started $at: no transcript for session $id, so what it loaded is unknown"; exit 1; }

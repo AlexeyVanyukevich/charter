@@ -231,7 +231,7 @@ session has no skill.
 | `core` | `documentation.md` | always | `architecture.md` is authoritative; specs and plans are dated records; a UI slice's spec states its accessibility |
 | `core` | `writing.md` | always | Refer to projects by role; name something only when the name is load-bearing |
 | `core` | `review.md` | always | A session ends by showing everything it changed, and what it decided alone |
-| `core` | `backlog.md` | always | Findings left unfixed go in `docs/backlog.md`, one entry each, deleted by the fix |
+| `core` | `backlog.md` | always | Findings left unfixed are raised as GitHub issues, one each, closed by the fix |
 | `core` | `testing.md` | always | Tests first, datasets over test bodies, derived facts, where tests live |
 | `backend` | `http.md` | `src/*`, `src/modules/**`, `src/shared/**` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
 | `backend` | `layout.md` | `src/**` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |

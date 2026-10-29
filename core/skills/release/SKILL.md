@@ -41,7 +41,7 @@ where a subject does not say what a consumer sees:
 - An entry says what changed for a consumer and what they do about it, not which file moved.
 - *Upgrading* is never empty. At its least: move the dependency to the new version; nothing
   else changes.
-- Leave out `test`, `docs` and backlog commits unless they change what a consumer reads or runs.
+- Leave out `test` and `docs` commits unless they change what a consumer reads or runs.
   Nothing a consumer cannot see — the project's own checks, its plans — appears.
 - Where the last release's notes follow this form, match their voice: `gh release view <tag>`.
 
