@@ -174,8 +174,8 @@ p="$(project twice)"
   fail "a repeated module was recorded twice"
 
 # Each plugin comes from the module it belongs to: frontend-design from the frontend domain,
-# playwright from the playwright stack. react brings none, so a Vue workspace taking frontend
-# and playwright gets both.
+# playwright from the playwright stack, figma from the figma stack. react brings none, so a Vue
+# workspace taking frontend and playwright gets both.
 while IFS='|' read -r modules want; do
   p="$(project "plugins-${modules// /-}")"
   # shellcheck disable=SC2086
@@ -186,6 +186,7 @@ done <<'ROWS'
 react|-
 frontend|frontend-design@claude-plugins-official
 playwright|playwright@claude-plugins-official
+figma|figma@claude-plugins-official
 frontend typescript react vitest playwright|frontend-design@claude-plugins-official playwright@claude-plugins-official
 ROWS
 
@@ -268,12 +269,17 @@ err="$( (cd "$p/server" && CLAUDE_PROJECT_DIR="$p/server" sh -c "$(ws_hook ..)")
   fail "the workspace hook succeeded without the kit"
 grep -q 'Run npm install' <<< "$err" || fail "without the kit, the workspace hook did not say to run npm install: got '$err'"
 
-# A UI workspace: a domain and four stacks, two of which ship a rule named journeys.md. The mirror
-# keeps them apart by module directory.
+# A UI workspace: a domain and five stacks, two of which ship a rule named journeys.md. The mirror
+# keeps them apart by module directory. figma's plugin is the workspace's; frontend's mockup
+# skill is the repository's, at the root.
 p="$(project ui)"
 mkdir -p "$p/apps/web"
-( cd "$p" && node "$cli" init frontend typescript react vitest playwright --workspace apps/web ) >/dev/null ||
-  fail "init frontend typescript react vitest playwright --workspace apps/web failed"
+( cd "$p" && node "$cli" init frontend typescript react vitest playwright figma --workspace apps/web ) >/dev/null ||
+  fail "init frontend typescript react vitest playwright figma --workspace apps/web failed"
+node -e 'if (require(process.argv[1]).enabledPlugins?.["figma@claude-plugins-official"] !== true) process.exit(1)' \
+  "$p/apps/web/.claude/settings.json" || fail "init figma --workspace apps/web did not turn on figma's plugin there"
+[ -f "$p/.claude/skills/charter-mockup/SKILL.md" ] && [ ! -e "$p/apps/web/.claude/skills" ] ||
+  fail "init frontend --workspace apps/web did not mirror the mockup skill at the root alone"
 ui="$p/.claude/rules/charter/apps/web"
 grep -qx '  - "apps/web/src/\*\*"' "$ui/frontend/accessibility.md" &&
   grep -qx '  - "apps/web/\*\*/\*.css"' "$ui/frontend/accessibility.md" &&
@@ -355,7 +361,7 @@ refuses() {
 refuses 'no command' 'Usage: charter init'
 refuses 'another command' 'Usage: charter init' build typescript
 refuses 'sync with arguments' 'no arguments' sync backend
-refuses 'an unknown module' 'backend, frontend, html, node, playwright, react, typescript, vitest' init mobile
+refuses 'an unknown module' 'backend, frontend, figma, html, node, playwright, react, typescript, vitest' init mobile
 refuses 'node with react' 'cannot share a workspace' init node react
 SETUP='echo "{ \"workspaces\": { \".\": [\"node\"] } }" > charter.json' \
   refuses 'react beside a recorded node' 'cannot share a workspace' init react
