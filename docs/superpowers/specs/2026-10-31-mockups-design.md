@@ -1,6 +1,6 @@
 # charter 3.6 — mockups before UI code
 
-Status: **designed**, 2026-10-31. Not built.
+Status: **built**, 2026-10-31.
 
 > **This is a decision record, not a description of the system.**
 >
