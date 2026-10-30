@@ -544,8 +544,8 @@ scripts off, and the files `charter.json` lists:
 
 Both keys are optional. `verify` runs through bash at the root, its output on stderr. A tracked
 file outside `files` that still holds the old version is listed after the cut, not changed: a
-search for a version also finds text that only mentions it. Specs and plans are dated records
-and are left out of that list.
+search for a version also finds text that only mentions it. Specs, plans and `docs/backlog.md`
+are dated records and are left out of that list.
 
 **The title** is `vX.Y.Z — <what a consumer would notice>`. **The notes** hold, in order:
 *What's new* (minor and major only), *Fixes*, *Known gaps* (only when a consumer can hit one),
