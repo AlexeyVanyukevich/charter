@@ -62,6 +62,7 @@ done
 # description, which is all a session sees of it until then. sync mirrors core's and those of
 # the modules a project names, each as charter-<name>, so a name is unique across the kit.
 [ -f "$kit/core/skills/release/SKILL.md" ] || { echo "  ✗ core ships no release skill"; exit 1; }
+[ -f "$kit/domains/frontend/skills/mockup/SKILL.md" ] || { echo "  ✗ frontend ships no mockup skill"; exit 1; }
 skills=0
 names=""
 for f in "$kit"/core/skills/*/SKILL.md "$kit"/domains/*/skills/*/SKILL.md "$kit"/stacks/*/skills/*/SKILL.md; do
@@ -161,6 +162,13 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
   ( cd "$consumer" && node node_modules/charter/bin/charter.mjs init backend typescript node vitest --backlog github &&
     node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server ) >/dev/null ||
     { echo "  ✗ charter init failed in the scratch consumer"; exit 1; }
+  # A web workspace taking frontend, written into charter.json rather than through init, which
+  # would install frontend's plugin on this machine; its skill is mirrored by the session's hook.
+  mkdir -p "$consumer/web"
+  node -e '
+    const fs = require("fs"), file = process.argv[1], m = JSON.parse(fs.readFileSync(file, "utf8"))
+    m.workspaces.web = ["frontend"]
+    fs.writeFileSync(file, JSON.stringify(m, null, 2) + "\n")' "$consumer/charter.json"
 
   # session <directory the session starts in> <file in it to read>: sets $answer, and $seen to
   # what the session's transcript shows — `read <file>` for each Read, `rule <file>` for each path
@@ -214,20 +222,21 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
     done
   done
 
-  # init's sync wrote the skill; a fresh clone's first session gets it only because the hook,
-  # having written it again, asks for the skills to be rescanned.
+  # init's sync wrote core's skill, and the sessions' hooks frontend's; a fresh clone's first
+  # session gets them only because the hook, having written them again, asks for a rescan.
   [ -f "$consumer/.claude/skills/charter-release/SKILL.md" ] || { echo "  ✗ init did not mirror the release skill"; exit 1; }
+  [ -f "$consumer/.claude/skills/charter-mockup/SKILL.md" ] || { echo "  ✗ sync did not mirror frontend's mockup skill"; exit 1; }
   rm -rf "$consumer/.claude/skills"
-  answer="$( (cd "$consumer" && claude -p "List the name of every skill available to you whose name contains 'release', one per line, or NONE. Nothing else." \
+  answer="$( (cd "$consumer" && claude -p "List the name of every skill available to you whose name contains 'release' or 'mockup', one per line, or NONE. Nothing else." \
     --disallowedTools Bash Grep Glob Read Edit Write Agent WebFetch WebSearch < /dev/null 2>&1 || true) | tr -d '`')"
-  grep -qx 'charter-release' <<< "$answer" ||
-    { echo "  ✗ a session whose hook wrote the release skill did not list it. Got: $answer"; exit 1; }
+  grep -qx 'charter-release' <<< "$answer" && grep -qx 'charter-mockup' <<< "$answer" ||
+    { echo "  ✗ a session whose hook wrote the release and mockup skills did not list both. Got: $answer"; exit 1; }
   echo "  ✓ three times over, a real session started at the root and one started in a workspace each"
   echo "    read core at once and http.md only in a matching file, as answered and as each transcript shows;"
-  echo "    and a fresh session lists the release skill its hook wrote"
+  echo "    and a fresh session lists the release and mockup skills its hook wrote"
 else
   echo "  · session check skipped (no claude CLI, or CHARTER_SKIP_SESSION_CHECK set)"
 fi
 
 echo "  ✓ $checked rules: core loads always ($always lines), the rest by path; a backend"
-echo "    workspace reads at most $backend_worst, a UI one $ui_worst; $skills skill by task"
+echo "    workspace reads at most $backend_worst, a UI one $ui_worst; $skills skills by task"
