@@ -59,18 +59,22 @@ for f in "$kit"/core/rules/*.md "$kit"/core/backlog/*.md "$kit"/domains/*/rules/
 done
 
 # A skill loads only when its task calls for it, so it keeps a budget of its own, and a
-# description, which is all a session sees of it until then. sync mirrors core's alone.
+# description, which is all a session sees of it until then. sync mirrors core's and those of
+# the modules a project names, each as charter-<name>, so a name is unique across the kit.
 [ -f "$kit/core/skills/release/SKILL.md" ] || { echo "  ✗ core ships no release skill"; exit 1; }
 skills=0
-for f in "$kit"/core/skills/*/SKILL.md; do
+names=""
+for f in "$kit"/core/skills/*/SKILL.md "$kit"/domains/*/skills/*/SKILL.md "$kit"/stacks/*/skills/*/SKILL.md; do
+  [ -f "$f" ] || continue
   lines="$(wc -l < "$f" | tr -d ' ')"
   [ "$lines" -le 100 ] || { echo "  ✗ ${f#"$kit"/} is $lines lines; the limit is 100"; exit 1; }
   awk 'NR == 1 { fm = ($0 == "---"); next } fm && $0 == "---" { exit } fm && /^description: ./ { found = 1 } END { exit !found }' "$f" ||
     { echo "  ✗ ${f#"$kit"/} has no description in its frontmatter"; exit 1; }
+  name="$(basename "$(dirname "$f")")"
+  ! grep -qx "$name" <<< "$names" || { echo "  ✗ two skills are named $name; sync mirrors both as charter-$name"; exit 1; }
+  names+="$name"$'\n'
   skills=$((skills + 1))
 done
-[ -z "$(find "$kit/domains" "$kit/stacks" -type d -name skills 2>/dev/null)" ] ||
-  { echo "  ✗ a module ships skills, which sync does not mirror"; exit 1; }
 
 # Module names are unique: charter.json names a module, not its directory.
 dupes="$(cd "$kit" && ls -d domains/*/ stacks/*/ | awk -F/ '{ print $2 }' | sort | uniq -d)"

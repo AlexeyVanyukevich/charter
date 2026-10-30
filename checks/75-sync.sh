@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # charter sync mirrors each workspace's path-scoped rules into .claude/rules/charter/, prefixed
-# with the workspace's path, and core's skills into .claude/skills/charter-<name>/; deletes what
-# the kit stopped shipping; prints nothing by hand, and from a hook the backlog rule charter.json
-# chooses, with core too below the root; and writes nothing at all when it refuses.
+# with the workspace's path, and the skills of core and of every module a workspace names into
+# .claude/skills/charter-<name>/; deletes what the kit stopped shipping; prints nothing by hand,
+# and from a hook the backlog rule charter.json chooses, with core too below the root; and writes
+# nothing at all when it refuses.
 set -euo pipefail
 
 tmp="$(mktemp -d)"
@@ -38,6 +39,9 @@ at_root() { printf "charter: this project keeps its backlog in %s. core's backlo
 mkdir -p "$kit/core/skills/probe/notes"
 printf -- '---\r\ndescription: Probe\r\n---\r\n\r\nProbe body.\r\n' > "$kit/core/skills/probe/SKILL.md"
 printf 'More.\n' > "$kit/core/skills/probe/notes/more.md"
+# A module's skill, mirrored only while some workspace names its module.
+mkdir -p "$kit/domains/alpha/skills/sketch"
+printf -- '---\ndescription: Sketch\n---\n\nSketch body.\n' > "$kit/domains/alpha/skills/sketch/SKILL.md"
 out="$p/.claude/rules/charter"
 skills="$p/.claude/skills"
 (cd "$p" && git init -q)
@@ -76,6 +80,9 @@ cmp -s "$kit/core/skills/probe/notes/more.md" "$skills/charter-probe/notes/more.
 (cd "$p" && git check-ignore -q .claude/skills/charter-probe/SKILL.md &&
   git check-ignore -q .claude/skills/charter-probe/.gitignore) ||
   fail "git does not ignore the mirrored skill"
+cmp -s "$kit/domains/alpha/skills/sketch/SKILL.md" "$skills/charter-sketch/SKILL.md" ||
+  fail "the skill of a module the root names was not mirrored"
+[ "$(cat "$skills/charter-sketch/.gitignore")" = '*' ] || fail "a mirrored module skill does not ignore itself"
 
 # ── workspaces: prefixed, nested ones too, and the root's mirror gone ──────────
 
@@ -115,6 +122,16 @@ run >/dev/null || fail "sync failed after workspaces were dropped"
 # server/api lies inside server, which stays: only its own directory goes.
 [ ! -e "$out/server/api" ] || fail "a dropped nested workspace left its mirror behind"
 [ -f "$out/server/alpha/a.md" ] || fail "dropping a nested workspace took its parent's rules with it"
+# A module's skill is mirrored once, at the root, for a workspace below it too, and goes when no
+# workspace names the module any more; core's stays.
+[ -f "$skills/charter-sketch/SKILL.md" ] && [ ! -e "$p/server/.claude" ] ||
+  fail "the skill of a module a workspace names was not mirrored at the root alone"
+manifest '{ "workspaces": { "server/api": ["beta"] } }'
+run >/dev/null || fail "sync failed after the last workspace naming a module was dropped"
+[ ! -e "$skills/charter-sketch" ] || fail "the skill of a module no workspace names survived"
+[ -f "$skills/charter-probe/SKILL.md" ] || fail "dropping a module took core's skill with it"
+manifest '{ "workspaces": { "server": ["alpha"] } }'
+run >/dev/null || fail "sync failed after a module was named again"
 
 # A charter- skill the kit does not ship goes, and so does a file the kit dropped from one it does.
 # Every other skill is the project's own.
@@ -306,6 +323,7 @@ err="$( (cd "$p" && node node_modules/charter/bin/charter.mjs sync extra) 2>&1 >
   fail "sync accepted an argument"
 grep -q 'no arguments' <<< "$err" || fail "sync with an argument did not say it takes none: got '$err'"
 
-echo "  ✓ sync mirrors and prefixes each workspace's rules and core's skills, deletes what was"
-echo "    dropped, finds the root from a workspace and prints core there, asks a session to reload"
-echo "    a skill it wrote, and writes nothing when refusing; one run took ${took} ms"
+echo "  ✓ sync mirrors and prefixes each workspace's rules, mirrors the skills of core and of the"
+echo "    modules a workspace names, deletes what was dropped, finds the root from a workspace and"
+echo "    prints core there, asks a session to reload a skill it wrote, and writes nothing when"
+echo "    refusing; one run took ${took} ms"
