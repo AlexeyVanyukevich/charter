@@ -105,7 +105,7 @@ with `CLAUDE_CODE_GIT_BASH_PATH`. Then start a new session.
 
 | Module | Kind | For | Brings |
 | ------ | ---- | --- | ------ |
-| `core` | — | every project | six rules, loaded always; the `charter-release` skill; the commit-msg hook; `lib.sh`; ignore files |
+| `core` | — | every project | five rules, loaded always, and the backlog rule `charter.json` chooses; the `charter-release` skill; the commit-msg hook; `lib.sh`; ignore files |
 | `backend` | domain | HTTP services | three rules, by path |
 | `frontend` | domain | web interfaces | two rules, by path; the `frontend-design` plugin |
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
@@ -173,9 +173,25 @@ under the project's config, so the project's own format check passes.
 
 It refuses to run away from the repository root (where `node_modules/charter` is), on an
 unknown module, on a workspace that is missing or outside the repository, on a workspace named
-`@root`, and on `node` and `react` in one workspace. What `sync` would refuse in another
-workspace already recorded — its directory gone, a module the kit no longer has — `init` refuses
-too. Every refusal comes before anything is written.
+`@root`, on `node` and `react` in one workspace, on a `backlog` or `--backlog` that is neither
+`file` nor `github`, and on a `--backlog` that contradicts `charter.json`. What `sync` would
+refuse in another workspace already recorded — its directory gone, a module the kit no longer
+has — `init` refuses too. Every refusal comes before anything is written.
+
+**Where the backlog lives** is `charter.json`'s `backlog` key. `"file"`, the default, keeps
+what is found and not fixed in `docs/backlog.md`; `"github"` raises it as GitHub issues.
+`--backlog <file|github>` writes the key when it is absent. `init` will not change a key that is
+set: moving a backlog is an edit to `charter.json`, and moving its entries is done by hand. While
+the key is absent and the repository's `origin` is on `github.com`, `init` ends by asking, with
+the two commands that answer:
+
+```text
+? This repository is on GitHub, and its backlog is docs/backlog.md, the default. Choose:
+    GitHub issues:   npx --no charter init backend typescript node vitest --backlog github
+    keep the file:   npx --no charter init backend typescript node vitest --backlog file
+```
+
+Off GitHub the file is the only form that works, and `init` does not ask.
 
 Commit `charter.json`, `CLAUDE.md`, `.gitignore`, and every `.claude/settings.json` it wrote —
 the root's and each workspace's. **Never commit `.claude/rules/charter/` or
@@ -198,7 +214,10 @@ workspace, as `server/src`, has no settings of its own: a session started there 
 Rules load in three tiers:
 
 - **Always** — `core`, through the one import in the root `CLAUDE.md`; in a session started in
-  a workspace, through the workspace's sync hook.
+  a workspace, through the workspace's sync hook. The backlog rule comes in two forms,
+  `core/backlog/file.md` and `core/backlog/github.md`, outside that import: a hook's `sync`
+  prints the one `charter.json` chooses, at the root as in a workspace. A rule a hook writes into
+  `.claude/rules/` does not load in that hook's session, so the form cannot be mirrored.
 - **By path** — every other module's rules. A rule loads once Claude reads a file that matches
   its `paths:`. `charter sync` delivers them.
 - **By task** — skills, which load when a session's task calls for one. `core` ships one,
@@ -206,9 +225,10 @@ Rules load in three tiers:
 
 `charter sync` takes no arguments. Its root is the nearest directory holding `charter.json`,
 looking upwards from `CLAUDE_PROJECT_DIR`, which a hook sets, or else from the working directory.
-At the root, and by hand, it prints nothing on success. Run by a workspace's hook, it prints
-`core`'s rules, in `core/rules.md`'s order, after one line naming the workspace: a hook's output
-is what the session reads. It reads `charter.json` and writes a
+By hand it prints nothing on success. Run by the root's hook, it prints the backlog form
+`charter.json` chooses, after one line naming where the backlog lives. Run by a workspace's hook,
+it prints `core`'s rules, in `core/rules.md`'s order, then that form, after one line naming the
+workspace: a hook's output is what the session reads. It reads `charter.json` and writes a
 mirror at `.claude/rules/charter/<workspace>/<module>/<rule>.md`, with the root workspace as
 `@root`. It prefixes each pattern with the workspace's path — for the workspace `server`,
 `src/modules/**` becomes `server/src/modules/**` — and copies the rest of the rule unchanged.
@@ -231,7 +251,8 @@ session has no skill.
 | `core` | `documentation.md` | always | `architecture.md` is authoritative; specs and plans are dated records; a UI slice's spec states its accessibility |
 | `core` | `writing.md` | always | Refer to projects by role; name something only when the name is load-bearing |
 | `core` | `review.md` | always | A session ends by showing everything it changed, and what it decided alone |
-| `core` | `backlog.md` | always | Findings left unfixed are raised as GitHub issues, one each, closed by the fix |
+| `core` | `backlog/file.md` | always, unless `charter.json` chooses `"github"` | Findings left unfixed go in `docs/backlog.md`, one entry each, deleted by the fix |
+| `core` | `backlog/github.md` | always, when `charter.json` chooses `"github"` | Findings left unfixed are raised as GitHub issues, one each, closed by the fix's subject |
 | `core` | `testing.md` | always | Tests first, datasets over test bodies, derived facts, where tests live |
 | `backend` | `http.md` | `src/*`, `src/modules/**`, `src/shared/**` | The one error shape, its codes, `additionalProperties: false`, 4xx translation |
 | `backend` | `layout.md` | `src/**` | `modules/<entities>/` and its four singular files; `shared/`, `db/` |
