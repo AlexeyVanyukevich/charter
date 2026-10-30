@@ -154,9 +154,8 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
     echo 'export const seed = 1' > "$consumer/$dir/scripts/seed.ts"
   done
   git -C "$consumer" init -q
-  ( cd "$consumer" && node node_modules/charter/bin/charter.mjs init backend typescript node vitest &&
-    node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server &&
-    node -e 'const f = "charter.json", m = JSON.parse(require("fs").readFileSync(f)); m.backlog = "github"; require("fs").writeFileSync(f, JSON.stringify(m))' ) >/dev/null ||
+  ( cd "$consumer" && node node_modules/charter/bin/charter.mjs init backend typescript node vitest --backlog github &&
+    node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server ) >/dev/null ||
     { echo "  ✗ charter init failed in the scratch consumer"; exit 1; }
 
   # session <directory the session starts in> <file in it to read>: sets $answer, and $seen to
