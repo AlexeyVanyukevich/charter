@@ -107,20 +107,23 @@ with `CLAUDE_CODE_GIT_BASH_PATH`. Then start a new session.
 | ------ | ---- | --- | ------ |
 | `core` | — | every project | five rules, loaded always, and the backlog rule `charter.json` chooses; the `charter-release` skill; the commit-msg hook; `lib.sh`; ignore files |
 | `backend` | domain | HTTP services | three rules, by path |
-| `frontend` | domain | web interfaces | two rules, by path; the `frontend-design` plugin |
+| `frontend` | domain | web interfaces | two rules, by path; the `charter-mockup` skill; the `frontend-design` plugin |
 | `typescript` | stack | any TypeScript workspace | one rule, by path; the base tsconfig; Prettier; a lint config |
 | `node` | stack | Node services | one rule, by path; the NodeNext tsconfig; a lint config |
 | `react` | stack | bundled browser applications | two rules, by path; the browser tsconfig; a lint config |
 | `html` | stack | hand-written HTML files | an html-validate config and rule; `charter scan` |
 | `vitest` | stack | a Vitest suite | a lint config |
 | `playwright` | stack | a Playwright suite | one rule, by path; the `playwright` plugin |
+| `figma` | stack | screens mocked up in Figma | the `figma` plugin |
 
 `core` needs no naming: every project has it. A workspace takes a domain and its stacks — a
 Node service writes `backend`, `typescript`, `node` and `vitest`; a React application writes
 `frontend`, `typescript`, `react`, `vitest` and `playwright`, and adds `html` when it keeps
-hand-written HTML files, as a component kit's reference markup. **`node` and `react` never
-share a workspace,** because their import rules contradict: NodeNext wants a `.js` extension
-on a relative import, a bundler wants none. `init` refuses the pair.
+hand-written HTML files, as a component kit's reference markup, and `figma` when its screens
+are mocked up in Figma, which needs an account and a login on every machine (see "Onboarding a
+project"). **`node` and `react` never share a workspace,** because their import rules
+contradict: NodeNext wants a `.js` extension on a relative import, a bundler wants none. `init`
+refuses the pair.
 
 ## Onboarding a project
 
@@ -158,9 +161,10 @@ and then adds what is missing, changing nothing that is set:
   where `npm install` has not run yet, fails saying to run it. It is a shell line, so on Windows
   it needs Git Bash, as under Install. The hook an older kit wrote is
   rewritten where it stands. Then the plugins of the named modules, which are listed in a
-  module's `plugins.json`: `frontend` brings `frontend-design`, and `playwright` the
-  `playwright` plugin. A plugin set to `false` stays off. Up to 3.2, `react` brought both;
-  `init` turns nothing off, so a workspace onboarded then keeps them.
+  module's `plugins.json`: `frontend` brings `frontend-design`, `playwright` the
+  `playwright` plugin, and `figma` Figma's `figma` plugin. A plugin set to `false` stays off.
+  Up to 3.2, `react` brought both; `init` turns nothing off, so a workspace onboarded then
+  keeps them.
 - for `--workspace <dir>`, the same hook and the same plugins in `<dir>/.claude/settings.json`,
   the hook reaching the root's kit through one `..` per level — `../..` for `apps/web`. A
   session started in the workspace reads that file, never the root's. The plugins installed for
@@ -209,6 +213,12 @@ workspace, as `server/src`, has no settings of its own: a session started there 
 **A committed plugin is turned on, not downloaded.** Each clone installs it once:
 `need_plugins`, in the `./run` frame below, does that.
 
+**Figma's plugin also needs a login, once per machine,** which nothing can do for the person: in
+a session, `/mcp`, select `figma`, Authenticate, and allow access in the browser. Drawing outside
+one's own drafts needs a Figma Full seat; Figma calls writing to the canvas a beta, free for
+now and to be billed by usage later. A session that cannot run the login — `claude -p`, CI —
+has no Figma.
+
 ## Rules
 
 Rules load in three tiers:
@@ -220,8 +230,11 @@ Rules load in three tiers:
   `.claude/rules/` does not load in that hook's session, so the form cannot be mirrored.
 - **By path** — every other module's rules. A rule loads once Claude reads a file that matches
   its `paths:`. `charter sync` delivers them.
-- **By task** — skills, which load when a session's task calls for one. `core` ships one,
-  `charter-release`, under "Cutting a release" below.
+- **By task** — skills, which load when a session's task calls for one. `core` ships
+  `charter-release`, under "Cutting a release" below. `frontend` ships `charter-mockup`: a
+  slice that changes what a user sees is mocked up in the project's design tool, from its
+  component kit, and approved in the slice's spec — a link and a PNG of each screen — before
+  its code is written.
 
 `charter sync` takes no arguments. Its root is the nearest directory holding `charter.json`,
 looking upwards from `CLAUDE_PROJECT_DIR`, which a hook sets, or else from the working directory.
@@ -236,10 +249,11 @@ It deletes mirrored files the kit no longer ships. A symlink inside the mirror, 
 is removed as a link and never followed. An invalid manifest, an unknown module or a
 missing workspace directory is refused before anything is written, with the cause on stderr.
 
-It mirrors `core`'s skills once, at the root, to `.claude/skills/charter-<name>/`: a session
-finds skills from where it starts up to the repository root, so workspaces need no copy. **The
-`charter-` prefix is the kit's:** `sync` deletes any `.claude/skills/charter-*` the kit does not
-ship, and touches nothing else in `.claude/skills/`. A session does not scan a skills directory
+It mirrors the skills of `core` and of every module a workspace names once, at the root, to
+`.claude/skills/charter-<name>/`: a session finds skills from where it starts up to the
+repository root, so workspaces need no copy. **The `charter-` prefix is the kit's:** `sync`
+deletes any `.claude/skills/charter-*` the kit does not ship, or ships for a module no workspace
+names, and touches nothing else in `.claude/skills/`. A session does not scan a skills directory
 its own hook created, so a hook's run that wrote a skill prints
 `{"hookSpecificOutput":{"hookEventName":"SessionStart","reloadSkills":true}}` instead of its usual
 output, carrying a workspace's `core` as `additionalContext`. Without it, a fresh clone's first
@@ -612,6 +626,10 @@ A new module is a directory under `domains/` or `stacks/`, with a name no other 
 `./check 40` fails until each rule has its place, and holds the budgets: 60 lines a file, 150
 for `core`, and 225 for a workspace's worst case — `core` plus every rule of its modules, as if
 every glob matched.
+
+A module's skill goes in its `skills/<name>/SKILL.md`, with a `description` in its frontmatter
+and at most 100 lines. It costs no rule budget, since it loads only by task. `sync` mirrors it as
+`charter-<name>`, so `./check 40` holds its name unique across the kit, `core` included.
 
 ## Releasing
 
