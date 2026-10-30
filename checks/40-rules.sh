@@ -20,6 +20,11 @@ shipped="$(cd "$kit/core" && find rules -type f -name '*.md' | sort)"
   exit 1
 }
 
+# The backlog rule comes in two forms, outside the index: sync prints the one charter.json chooses.
+forms="$(cd "$kit/core/backlog" && ls)"
+[ "$forms" = $'file.md\ngithub.md' ] ||
+  { echo "  ✗ core/backlog/ must hold file.md and github.md alone; holds: $(tr '\n' ' ' <<< "$forms")"; exit 1; }
+
 # No module has an index: an @ import of one would load its rules in every session.
 stray="$(find "$kit/domains" "$kit/stacks" -name rules.md 2>/dev/null || true)"
 [ -z "$stray" ] || { echo "  ✗ a module has an index, so its rules would always load:"; echo "$stray"; exit 1; }
@@ -41,7 +46,7 @@ has_paths_block() {
 total() { local sum=0 f; for f in "$@"; do sum=$((sum + $(body_lines "$f"))); done; echo "$sum"; }
 
 checked=0
-for f in "$kit"/core/rules/*.md "$kit"/domains/*/rules/*.md "$kit"/stacks/*/rules/*.md; do
+for f in "$kit"/core/rules/*.md "$kit"/core/backlog/*.md "$kit"/domains/*/rules/*.md "$kit"/stacks/*/rules/*.md; do
   [ -e "$f" ] || continue
   lines="$(body_lines "$f")"
   [ "$lines" -le 60 ] || { echo "  ✗ ${f#"$kit"/} is $lines lines; the limit is 60"; exit 1; }
@@ -74,15 +79,17 @@ dupes="$(cd "$kit" && ls -d domains/*/ stacks/*/ | awk -F/ '{ print $2 }' | sort
 # Budgets — spec 2026-10-13-foundation-design §5. The always tier is what every session reads;
 # a workspace's worst case is core plus every path rule of its modules, as if every glob matched.
 # Over a limit, move a rule to the module that needs it; raising the limit only spends the
-# budget that keeps the rules followed.
-always="$(total "$kit"/core/rules/*.md)"
+# budget that keeps the rules followed. A session reads one backlog form; the longer one counts.
+form="$kit/core/backlog/file.md"
+[ "$(body_lines "$kit/core/backlog/github.md")" -le "$(body_lines "$form")" ] || form="$kit/core/backlog/github.md"
+always="$(total "$kit"/core/rules/*.md "$form")"
 [ "$always" -le 150 ] || {
   echo "  ✗ core's rules are $always lines; the always tier's limit is 150. Move a rule to the module that needs it rather than raising the limit."
   exit 1
 }
 worst() {
   local m f
-  local files=("$kit"/core/rules/*.md)
+  local files=("$kit"/core/rules/*.md "$form")
   for m in "$@"; do
     # A module with no rules, as vitest, adds nothing; a name that is no module is a typo.
     [ -d "$kit/domains/$m" ] || [ -d "$kit/stacks/$m" ] ||
@@ -106,14 +113,19 @@ ui_worst="$(worst frontend typescript react vitest playwright)"
 
 # The live session asks for two facts no session could guess, one in core, one in a path rule.
 # Each fact must live in exactly one rule, or the session's answer stops proving which file
-# loaded. These guards keep that true, and run even when the session is skipped.
-core_fact='2026-09-29'
+# loaded. These guards keep that true, and run even when the session is skipped. The core fact
+# is the GitHub form's example date: the session's consumer chooses that form, and the file
+# form's date, a different one, would show the choice was not read.
+core_fact='2026-09-30'
+file_fact='2026-09-29'
 path_fact='forbidden_origin'
 holders() {
-  { grep -rlF "$1" "$kit"/core/rules "$kit"/domains/*/rules "$kit"/stacks/*/rules || true; } | sed "s|^$kit/||"
+  { grep -rlF "$1" "$kit"/core/rules "$kit"/core/backlog "$kit"/domains/*/rules "$kit"/stacks/*/rules || true; } | sed "s|^$kit/||"
 }
-[ "$(holders "$core_fact")" = core/rules/backlog.md ] ||
-  { echo "  ✗ $core_fact must live in core/rules/backlog.md alone; found: $(holders "$core_fact")"; exit 1; }
+[ "$(holders "$core_fact")" = core/backlog/github.md ] ||
+  { echo "  ✗ $core_fact must live in core/backlog/github.md alone; found: $(holders "$core_fact")"; exit 1; }
+[ "$(holders "$file_fact")" = core/backlog/file.md ] ||
+  { echo "  ✗ $file_fact must live in core/backlog/file.md alone; found: $(holders "$file_fact")"; exit 1; }
 [ "$(holders "$path_fact")" = domains/backend/rules/http.md ] ||
   { echo "  ✗ $path_fact must live in domains/backend/rules/http.md alone; found: $(holders "$path_fact")"; exit 1; }
 
@@ -143,7 +155,8 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
   done
   git -C "$consumer" init -q
   ( cd "$consumer" && node node_modules/charter/bin/charter.mjs init backend typescript node vitest &&
-    node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server ) >/dev/null ||
+    node node_modules/charter/bin/charter.mjs init backend typescript node vitest --workspace server &&
+    node -e 'const f = "charter.json", m = JSON.parse(require("fs").readFileSync(f)); m.backlog = "github"; require("fs").writeFileSync(f, JSON.stringify(m))' ) >/dev/null ||
     { echo "  ✗ charter init failed in the scratch consumer"; exit 1; }
 
   # session <directory the session starts in> <file in it to read>: sets $answer, and $seen to

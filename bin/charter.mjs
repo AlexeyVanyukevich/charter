@@ -23,7 +23,18 @@ import { parseArgs } from 'node:util'
 import { KitError, findModules } from './modules.mjs'
 import { cut, notes, repositoryRoot, show } from './release.mjs'
 import { scan } from './scan.mjs'
-import { coreText, findRoot, manifestFile, normalizeWorkspace, plan, readManifest, sync } from './sync.mjs'
+import {
+  backlogOf,
+  backlogPlace,
+  backlogText,
+  coreText,
+  findRoot,
+  manifestFile,
+  normalizeWorkspace,
+  plan,
+  readManifest,
+  sync,
+} from './sync.mjs'
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const usage =
@@ -301,14 +312,17 @@ if (options.command === 'sync') {
   const start = resolve(process.env.CLAUDE_PROJECT_DIR || process.cwd())
   const root = guard(() => findRoot(start))
   const { wroteSkill } = guard(() => sync(root, kit))
+  const backlog = backlogOf(guard(() => readManifest(root)))
   // Below the root, the root CLAUDE.md's import of core does not reach the session, and the hook's
-  // stdout does. Spec: docs/superpowers/specs/2026-10-15-workspace-sessions-design.md.
+  // stdout does. Spec: docs/superpowers/specs/2026-10-15-workspace-sessions-design.md. At the root
+  // the import carries core but for the backlog form, which charter.json chooses.
   const hooked = Boolean(process.env.CLAUDE_PROJECT_DIR)
   const where = relative(root, start).split(sep).join('/')
-  const context =
-    hooked && start !== root
-      ? `charter: this session started in ${where}/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow.\n\n${coreText(kit)}`
-      : undefined
+  const context = !hooked
+    ? undefined
+    : start !== root
+      ? `charter: this session started in ${where}/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow.\n\n${coreText(kit, backlog)}`
+      : `charter: this project keeps its backlog in ${backlogPlace[backlog]}. core's backlog rule follows.\n\n${backlogText(kit, backlog)}`
   // A skills directory this hook created is not scanned by its session unless the hook asks.
   if (hooked && wroteSkill) {
     const output = { hookEventName: 'SessionStart', reloadSkills: true, ...(context && { additionalContext: context }) }

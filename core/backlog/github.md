@@ -13,7 +13,7 @@ One issue per finding. The issue below illustrates the format; its paths are inv
 
     Title: Cancelling a paid order skips the refund
     Where: `src/modules/order/order.service.ts`, `cancel()`
-    Found: 2026-09-29, while adding order notes
+    Found: 2026-09-30, while adding order notes
     Problem: status becomes `cancelled`; no refund row is written. Cancel any paid order.
     Impact: every paid cancellation needs a manual refund
 
@@ -22,6 +22,7 @@ up the thing from the review" is a note to yourself, and it expires with your me
 
 **The fix's subject ends `, fixes #<number>`,** and GitHub closes the issue when the commit
 reaches `main`. A code comment may point at an issue by its number, never stand in for one.
+**The session's review links each issue it raised,** which no diff shows.
 
 Read the open issues before planning a slice. One touching the same code is either taken into
 the plan or left open knowingly — never rediscovered halfway through.
