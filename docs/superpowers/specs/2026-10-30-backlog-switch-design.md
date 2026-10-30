@@ -1,6 +1,6 @@
 # charter — where a project keeps its backlog
 
-Status: **approved**, 2026-10-30.
+Status: **built**, 2026-10-30.
 
 > **This is a decision record, not a description of the system.**
 >
