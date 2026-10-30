@@ -1,7 +1,9 @@
 // Mirrors each workspace's path-scoped rules into .claude/rules/charter/, writing the workspace's
-// path in front of every pattern, and core's skills into .claude/skills/charter-<name>/. Computes
-// everything before writing anything, and prints nothing: a SessionStart hook's stdout goes into
-// the session's context. Spec §3; skills: docs/superpowers/specs/2026-10-21-release-design.md.
+// path in front of every pattern, and the skills of core and of the modules a workspace names into
+// .claude/skills/charter-<name>/. Computes everything before writing anything, and prints nothing:
+// a SessionStart hook's stdout goes into the session's context. Spec §3; skills:
+// docs/superpowers/specs/2026-10-21-release-design.md, and for modules'
+// docs/superpowers/specs/2026-10-31-mockups-design.md.
 
 import {
   existsSync,
@@ -130,6 +132,7 @@ function parseRule(text, name) {
 export function plan(root, kit, manifest = readManifest(root)) {
   const modules = findModules(kit)
   const wanted = new Map()
+  const named = new Set()
   for (const [key, names] of Object.entries(manifest.workspaces)) {
     // Absolute keys are refused before normalizing, which would turn "/" into the root.
     const slashed = key.replaceAll('\\', '/')
@@ -156,6 +159,7 @@ export function plan(root, kit, manifest = readManifest(root)) {
           `The modules are ${[...modules.keys()].join(', ')}.`,
         )
       }
+      named.add(home)
       const rules = join(kit, home, 'rules')
       if (!existsSync(rules)) continue
       for (const file of readdirSync(rules).filter((f) => f.endsWith('.md')).sort()) {
@@ -166,17 +170,20 @@ export function plan(root, kit, manifest = readManifest(root)) {
       }
     }
   }
-  // core's skills, once for the repository: a session reads .claude/skills/ from where it starts
-  // up to the root. Each directory ignores itself, so no consumer's .gitignore needs a line.
-  const skills = join(kit, 'core', 'skills')
-  for (const name of existsSync(skills) ? readdirSync(skills).sort() : []) {
-    const dir = join(skills, name)
-    if (!statSync(dir).isDirectory()) continue
-    const mirrored = join(skillsDir, `${skillPrefix}${name}`)
-    for (const file of readdirSync(dir, { recursive: true }).sort()) {
-      if (statSync(join(dir, file)).isFile()) wanted.set(join(mirrored, file), readFileSync(join(dir, file), 'utf8'))
+  // The skills of core and of every module a workspace names, once for the repository: a session
+  // reads .claude/skills/ from where it starts up to the root. Each directory ignores itself, so no
+  // consumer's .gitignore needs a line.
+  for (const home of ['core', ...[...named].sort()]) {
+    const skills = join(kit, home, 'skills')
+    for (const name of existsSync(skills) ? readdirSync(skills).sort() : []) {
+      const dir = join(skills, name)
+      if (!statSync(dir).isDirectory()) continue
+      const mirrored = join(skillsDir, `${skillPrefix}${name}`)
+      for (const file of readdirSync(dir, { recursive: true }).sort()) {
+        if (statSync(join(dir, file)).isFile()) wanted.set(join(mirrored, file), readFileSync(join(dir, file), 'utf8'))
+      }
+      wanted.set(join(mirrored, '.gitignore'), '*\n')
     }
-    wanted.set(join(mirrored, '.gitignore'), '*\n')
   }
   return wanted
 }
