@@ -192,7 +192,7 @@ if [ -z "${CHARTER_SKIP_SESSION_CHECK:-}" ] && command -v claude >/dev/null 2>&1
         if (rule) console.log(`rule ${rule}`)
       }' "$transcript" "$consumer")"
     grep -qxF "read ${file#"$consumer"/}" <<< "$seen" ||
-      { echo "  ✗ run $run, started $at: asked to read ${file#"$consumer"/}, the session did not. Saw: $(tr '\n' ' ' <<< "$seen")"; exit 1; }
+      { echo "  ✗ run $run, started $at: asked to read ${file#"$consumer"/}, the session did not. Answered: $(tr '\n' ' ' <<< "$answer") Saw: $(tr '\n' ' ' <<< "$seen")"; exit 1; }
   }
   for run in 1 2 3; do
     for dir in . server; do
