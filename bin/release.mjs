@@ -226,9 +226,9 @@ export function cut(root, wanted) {
   }
 
   // A tracked file outside the list may only mention the version, so it is reported, not changed.
-  // Specs and plans are dated records: they mention versions as history, never copy one.
+  // Specs, plans and the backlog are dated records: they mention versions as history, never copy one.
   const ours = new Set(['package.json', ...lockfiles, ...listed])
-  const dated = [':!docs/superpowers/']
+  const dated = [':!docs/superpowers/', ':!docs/backlog.md']
   let stray = []
   try {
     stray = git(root, 'grep', '-l', '-F', '-e', current, '--', '.', ...dated)
