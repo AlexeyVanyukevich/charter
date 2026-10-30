@@ -2,7 +2,8 @@
 // Onboards a project and keeps its path-scoped rules current:
 //
 //   charter init [<module…>] [--workspace <dir>]   records the modules in charter.json, imports
-//                                                  core, wires the sync hook, then syncs
+//     [--backlog <file|github>]                    core, wires the sync hook, then syncs; records
+//                                                  where the backlog lives
 //   charter sync                                   mirrors the modules' rules into the project
 //   charter scan <file or directory…>              runs axe-core over static HTML files
 //   charter release                                shows the gates, the commits since the last
@@ -24,6 +25,7 @@ import { KitError, findModules } from './modules.mjs'
 import { cut, notes, repositoryRoot, show } from './release.mjs'
 import { scan } from './scan.mjs'
 import {
+  backlogs,
   backlogOf,
   backlogPlace,
   backlogText,
@@ -38,7 +40,7 @@ import {
 
 const kit = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const usage =
-  'Usage: charter init [<module…>] [--workspace <dir>]  |  charter sync  |  charter scan <file or directory…>  |  charter release [notes] [<version>]'
+  'Usage: charter init [<module…>] [--workspace <dir>] [--backlog <file|github>]  |  charter sync  |  charter scan <file or directory…>  |  charter release [notes] [<version>]'
 const settingsFile = join('.claude', 'settings.json')
 const coreImport = '@node_modules/charter/core/rules.md'
 const ignored = '.claude/rules/charter/'
@@ -72,27 +74,33 @@ function guard(action) {
 function parse(argv) {
   let parsed
   try {
-    parsed = parseArgs({ args: argv, allowPositionals: true, options: { workspace: { type: 'string' } } })
+    parsed = parseArgs({
+      args: argv,
+      allowPositionals: true,
+      options: { workspace: { type: 'string' }, backlog: { type: 'string' } },
+    })
   } catch (error) {
     fail(error.message, usage)
   }
   const [command, ...names] = parsed.positionals
+  const flagged = parsed.values.workspace !== undefined || parsed.values.backlog !== undefined
   if (command === 'sync') {
-    if (names.length > 0 || parsed.values.workspace !== undefined) fail('sync takes no arguments.', usage)
+    if (names.length > 0 || flagged) fail('sync takes no arguments.', usage)
     return { command }
   }
   if (command === 'scan') {
-    if (names.length === 0 || parsed.values.workspace !== undefined) fail('scan takes the files or directories to scan.', usage)
+    if (names.length === 0 || flagged) fail('scan takes the files or directories to scan.', usage)
     return { command, paths: names }
   }
   if (command === 'release') {
     const notes = names[0] === 'notes'
     const [version, ...rest] = notes ? names.slice(1) : names
-    if (parsed.values.workspace !== undefined || rest.length > 0) fail('release takes notes, a version, or both.', usage)
+    if (flagged || rest.length > 0) fail('release takes notes, a version, or both.', usage)
     return { command, action: notes ? 'notes' : version === undefined ? 'show' : 'cut', version }
   }
   if (command !== 'init') fail(command ? `Unknown command: ${command}.` : 'No command given.', usage)
-  return { command, names: [...new Set(names)], workspace: parsed.values.workspace ?? '.' }
+  const { workspace = '.', backlog } = parsed.values
+  return { command, names: [...new Set(names)], workspace, backlog }
 }
 
 // Returns the workspace's key in charter.json. Refuses before anything is written.
@@ -214,9 +222,26 @@ async function jsonWriter(files) {
     writeFileSync(file, await prettier.format(JSON.stringify(value, null, 2), { ...options.get(file), filepath: file }))
 }
 
-async function init({ names, workspace }) {
+// The backlog is a real choice only where issues can work: a repository on GitHub. There init asks,
+// until charter.json records an answer. It prints the question rather than prompting, since an
+// agent often runs init with no terminal to answer in. Spec:
+// docs/superpowers/specs/2026-10-30-backlog-switch-design.md.
+function askBacklog(manifest, names, workspace) {
+  if (manifest.backlog !== undefined) return
+  const origin = spawnSync('git', ['remote', 'get-url', 'origin'], { encoding: 'utf8' })
+  if (origin.status !== 0 || !/(^|[@/])github\.com[:/]/.test(origin.stdout.trim())) return
+  const args = [...names, ...(workspace === '.' ? [] : ['--workspace', workspace]), '--backlog'].join(' ')
+  console.log('? This repository is on GitHub, and its backlog is docs/backlog.md, the default. Choose:')
+  console.log(`    GitHub issues:   npx --no charter init ${args} github`)
+  console.log(`    keep the file:   npx --no charter init ${args} file`)
+}
+
+async function init({ names, workspace, backlog }) {
   const modules = guard(() => findModules(kit))
   const key = check(names, workspace, modules)
+  if (backlog !== undefined && !backlogs.includes(backlog)) {
+    fail(`--backlog ${backlog} is not a place for the backlog.`, 'It takes "file" or "github".')
+  }
   const settings = readSettings(settingsFile)
   // A session started in a workspace reads the workspace's settings, never the root's, so the
   // workspace gets its own sync hook, reaching the root's kit one .. per level up. Spec:
@@ -224,6 +249,13 @@ async function init({ names, workspace }) {
   const wsSettingsFile = key === '.' ? null : join(...key.split('/'), settingsFile)
   const wsSettings = wsSettingsFile ? readSettings(wsSettingsFile) : null
   const manifest = existsSync(manifestFile) ? guard(() => readManifest(process.cwd())) : { workspaces: {} }
+  if (backlog !== undefined && manifest.backlog !== undefined && manifest.backlog !== backlog) {
+    fail(
+      `${manifestFile} already keeps the backlog in ${backlogPlace[manifest.backlog]}.`,
+      `init changes nothing that is set: edit "backlog" in ${manifestFile} to move it.`,
+    )
+  }
+  const newBacklog = backlog !== undefined && manifest.backlog === undefined
   const recorded = Object.keys(manifest.workspaces).find((k) => normalizeWorkspace(k) === key) ?? key
   const current = manifest.workspaces[recorded] ?? []
   const merged = [...current, ...names.filter((name) => !current.includes(name))]
@@ -242,13 +274,16 @@ async function init({ names, workspace }) {
   const writeJson = await jsonWriter([manifestFile, settingsFile, ...(wsSettingsFile ? [wsSettingsFile] : [])])
 
   // Nothing has been written up to here.
-  if (!(recorded in manifest.workspaces) || merged.length > current.length) {
+  const newWorkspace = !(recorded in manifest.workspaces) || merged.length > current.length
+  if (newWorkspace || newBacklog) {
     manifest.workspaces[recorded] = merged
+    if (newBacklog) manifest.backlog = backlog
     await writeJson(manifestFile, manifest)
-    console.log(`✓ ${manifestFile}: ${recorded} — ${merged.length > 0 ? merged.join(', ') : 'core only'}`)
-  } else {
-    console.log(`  ${manifestFile} already has ${recorded} with these modules`)
   }
+  if (newWorkspace) console.log(`✓ ${manifestFile}: ${recorded} — ${merged.length > 0 ? merged.join(', ') : 'core only'}`)
+  else console.log(`  ${manifestFile} already has ${recorded} with these modules`)
+  if (newBacklog) console.log(`✓ ${manifestFile}: the backlog in ${backlogPlace[backlog]}`)
+  else if (backlog !== undefined) console.log(`  ${manifestFile} already keeps the backlog in ${backlogPlace[backlog]}`)
 
   const enabled = settings.enabledPlugins ?? {}
   const newPlugins = plugins.filter((id) => !Object.hasOwn(enabled, id))
@@ -301,6 +336,7 @@ async function init({ names, workspace }) {
       "init's files are written and synced, but need_plugins and need_hooks did not run: run them from ./run, or install bash (Git Bash on Windows).",
     )
   }
+  askBacklog(manifest, names, workspace)
   process.exit(run.status ?? 1)
 }
 

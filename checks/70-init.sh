@@ -289,6 +289,52 @@ git -C "$p" init -q
 ( cd "$p" && node "$cli" init ) >/dev/null || fail "init in a repository failed"
 [ -f "$p/.git/hooks/commit-msg" ] || fail "init did not install the commit-msg hook"
 
+# ── the backlog: --backlog, and the question a project on GitHub is asked ─────
+
+p="$(project backlog)"
+( cd "$p" && node "$cli" init --backlog github ) >/dev/null || fail "init --backlog github failed"
+[ "$(node -p 'require(process.argv[1]).backlog' "$p/charter.json")" = github ] ||
+  { echo "  ✗ init --backlog github did not write the key:"; cat "$p/charter.json"; exit 1; }
+before="$(cat "$p/charter.json")"
+out="$( cd "$p" && node "$cli" init --backlog github )" || fail "a second init --backlog github failed"
+[ "$(cat "$p/charter.json")" = "$before" ] || fail "a second init --backlog github changed charter.json"
+grep -qF 'already keeps the backlog in GitHub issues' <<< "$out" ||
+  fail "a second init --backlog github did not say the key was set: $out"
+
+# One row per repository: its origin (empty for none), the backlog charter.json already holds
+# (empty for none), init's arguments, and whether init asks where the backlog lives. Only a
+# repository on GitHub has a choice to make, and only until charter.json records it.
+IFS= read -r -d '' rows <<'ROWS' || true
+https://github.com/acme/app.git||typescript|asks
+git@github.com:acme/app.git||typescript|asks
+https://github.com/acme/app.git||typescript --workspace server|asks
+https://gitlab.com/acme/app.git||typescript|silent
+https://example.com/notgithub.com/app.git||typescript|silent
+||typescript|silent
+https://github.com/acme/app.git|file|typescript|silent
+https://github.com/acme/app.git|github|typescript|silent
+ROWS
+n=0
+while IFS='|' read -r origin backlog args asks; do
+  n=$((n + 1))
+  p="$(project "ask-$n")"
+  mkdir -p "$p/server"
+  git -C "$p" init -q
+  [ -z "$origin" ] || git -C "$p" remote add origin "$origin"
+  [ -z "$backlog" ] || printf '{ "workspaces": {}, "backlog": "%s" }\n' "$backlog" > "$p/charter.json"
+  # shellcheck disable=SC2086 # the row's arguments are words
+  out="$( cd "$p" && node "$cli" init $args )" || fail "init $args failed with origin '$origin'"
+  asked="$(grep -c '^? This repository is on GitHub' <<< "$out" || true)"
+  if [ "$asks" = asks ]; then
+    [ "$asked" = 1 ] && grep -qF "npx --no charter init $args --backlog github" <<< "$out" &&
+      grep -qF "npx --no charter init $args --backlog file" <<< "$out" ||
+      { echo "  ✗ init $args with origin $origin did not ask, naming its own arguments:"; echo "$out"; exit 1; }
+  else
+    [ "$asked" = 0 ] ||
+      { echo "  ✗ init $args asked where the backlog lives, with origin '$origin' and backlog '$backlog':"; echo "$out"; exit 1; }
+  fi
+done <<< "${rows%$'\n'}"
+
 # ── refusals: non-zero, and nothing written ───────────────────────────────────
 
 refuses() {
@@ -321,6 +367,12 @@ SETUP='mkdir .claude && echo "{ \"enabledPlugins\": [] }" > .claude/settings.jso
 SETUP='mkdir .claude && echo "{ \"hooks\": [] }" > .claude/settings.json' \
   refuses 'hooks as an array' 'hooks' init typescript
 SETUP='echo "{" > charter.json' refuses 'broken charter.json' 'charter.json' init typescript
+refuses 'an unknown --backlog' 'takes "file" or "github"' init --backlog gitlab
+refuses 'sync with --backlog' 'no arguments' sync --backlog github
+SETUP='echo "{ \"workspaces\": {}, \"backlog\": \"file\" }" > charter.json' \
+  refuses 'a --backlog charter.json contradicts' 'already keeps the backlog in docs/backlog.md' init --backlog github
+SETUP='echo "{ \"workspaces\": {}, \"backlog\": \"gitlab\" }" > charter.json' \
+  refuses 'an unknown backlog in charter.json' 'takes "file" or "github"' init typescript
 # init names the file with the platform's separator, as server\.claude\settings.json on Windows.
 SETUP='mkdir -p server/.claude && echo "{" > server/.claude/settings.json' \
   refuses "a workspace's broken settings JSON" 'server[/\]\.claude[/\]settings\.json' init typescript --workspace server
@@ -379,5 +431,5 @@ grep -qF '".": ["frontend", "typescript", "playwright", "html", "react"]' "$p/ch
   { echo "  ✗ the modules were not joined on one line:"; cat "$p/charter.json"; exit 1; }
 
 echo "  ✓ init records modules, imports core, wires the sync hook and the ignore line, merges"
-echo "    without overwriting, syncs each workspace, refuses cleanly, reaches a consumer, and"
-echo "    writes JSON the project's Prettier accepts"
+echo "    without overwriting, syncs each workspace, records the backlog and asks for it only on"
+echo "    GitHub, refuses cleanly, reaches a consumer, and writes JSON the project's Prettier accepts"
