@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # charter sync mirrors each workspace's path-scoped rules into .claude/rules/charter/, prefixed
 # with the workspace's path, and core's skills into .claude/skills/charter-<name>/; deletes what
-# the kit stopped shipping; prints nothing on success, unless a hook's run wrote a skill; and
-# writes nothing at all when it refuses.
+# the kit stopped shipping; prints nothing by hand, and from a hook the backlog rule charter.json
+# chooses, with core too below the root; and writes nothing at all when it refuses.
 set -euo pipefail
 
 tmp="$(mktemp -d)"
@@ -27,6 +27,13 @@ mkdir -p "$kit/core/rules"
 printf '# Core\n\n@rules/zeta.md\n@rules/eta.md\n' > "$kit/core/rules.md"
 printf '# Zeta\n\nZeta body.\n' > "$kit/core/rules/zeta.md"
 printf '# Eta\n\nEta body.\n' > "$kit/core/rules/eta.md"
+# The two forms of the backlog rule, outside core's index: charter.json chooses one.
+mkdir -p "$kit/core/backlog"
+printf '# File\n\nFile body.\n' > "$kit/core/backlog/file.md"
+printf '# GitHub\n\nGitHub body.\n' > "$kit/core/backlog/github.md"
+file_form=$'# File\n\nFile body.'
+github_form=$'# GitHub\n\nGitHub body.'
+at_root() { printf "charter: this project keeps its backlog in %s. core's backlog rule follows.\n\n%s" "$1" "$2"; }
 # A skill with CRLF endings, copied byte for byte, and a supporting file one directory down.
 mkdir -p "$kit/core/skills/probe/notes"
 printf -- '---\r\ndescription: Probe\r\n---\r\n\r\nProbe body.\r\n' > "$kit/core/skills/probe/SKILL.md"
@@ -193,16 +200,28 @@ printed="$( cd "$p/server" && CLAUDE_PROJECT_DIR="$p" node ../node_modules/chart
   fail "sync failed when run from a subdirectory"
 [ -f "$out/server/alpha/a.md" ] || fail "sync did not write at CLAUDE_PROJECT_DIR"
 [ ! -e "$p/server/.claude" ] || fail "sync wrote into the directory it was run from"
-[ -z "$printed" ] || fail "a hook's sync at the root printed '$printed'"
+# The backlog rule is not in core's index, so even at the root only the hook's output carries it:
+# the form charter.json chooses, the file when it chooses none.
+root_file="$(at_root docs/backlog.md "$file_form")"
+[ "$printed" = "$root_file" ] || { echo "  ✗ a hook's sync at the root did not print the file form:"; echo "$printed"; exit 1; }
 
 # A skills directory a hook creates is not scanned by the session it starts, so a hook's run that
-# wrote a skill asks for a rescan; one that wrote none, and a run by hand, print nothing.
+# wrote a skill asks for a rescan, carrying the backlog rule; one that wrote none prints it plain.
 rm -rf "$skills"
 printed="$(hook "$p")" || fail "a hook's sync failed writing a skill"
 context="$(reloads <<< "$printed")" || fail "a hook's sync that wrote a skill did not ask for a reload: got '$printed'"
-[ -z "$context" ] || fail "a hook's sync at the root added context: '$context'"
+[ "$context" = "$root_file" ] || { echo "  ✗ the reload request at the root did not carry the file form:"; echo "$context"; exit 1; }
 printed="$(hook "$p")" || fail "a second hook's sync failed"
-[ -z "$printed" ] || fail "a hook's sync that wrote no skill printed '$printed'"
+[ "$printed" = "$root_file" ] || { echo "  ✗ a hook's sync that wrote no skill did not print the file form:"; echo "$printed"; exit 1; }
+manifest '{ "workspaces": { "server": ["alpha"] }, "backlog": "file" }'
+printed="$(hook "$p")" || fail "a hook's sync choosing the file failed"
+[ "$printed" = "$root_file" ] || { echo "  ✗ \"backlog\": \"file\" did not print the file form:"; echo "$printed"; exit 1; }
+manifest '{ "workspaces": { "server": ["alpha"] }, "backlog": "github" }'
+printed="$(hook "$p")" || fail "a hook's sync choosing GitHub failed"
+expected="$(at_root 'GitHub issues' "$github_form")"
+[ "$printed" = "$expected" ] || { echo "  ✗ \"backlog\": \"github\" did not print the GitHub form:"; echo "$printed"; exit 1; }
+[ -z "$(run)" ] || fail "sync by hand printed the backlog rule"
+manifest '{ "workspaces": { "server": ["alpha"] } }'
 rm -rf "$skills"
 printed="$(run)" || fail "sync by hand failed writing a skill"
 [ -z "$printed" ] && [ -f "$skills/charter-probe/SKILL.md" ] || fail "sync by hand that wrote a skill printed '$printed'"
@@ -218,8 +237,13 @@ printed="$( cd "$p" && CLAUDE_PROJECT_DIR="$p/server/api" node node_modules/char
 [ -f "$out/server/alpha/a.md" ] || fail "sync from a workspace did not write the root's mirror"
 [ ! -e "$p/server/api/.claude" ] && [ ! -e "$p/server/.claude" ] || fail "sync from a workspace wrote into it"
 expected="charter: this session started in server/api/, below the repository root, where CLAUDE.md's import of core does not reach. core's rules follow."
-expected+=$'\n\n# Zeta\n\nZeta body.\n\n# Eta\n\nEta body.'
-[ "$printed" = "$expected" ] || { echo "  ✗ sync from a workspace did not print core in its index's order:"; echo "$printed"; exit 1; }
+expected+=$'\n\n# Zeta\n\nZeta body.\n\n# Eta\n\nEta body.\n\n'"$file_form"
+[ "$printed" = "$expected" ] || { echo "  ✗ sync from a workspace did not print core in its index's order, then the backlog form:"; echo "$printed"; exit 1; }
+manifest '{ "workspaces": { "server": ["alpha"] }, "backlog": "github" }'
+printed="$(hook "$p/server/api")" || fail "a workspace hook's sync choosing GitHub failed"
+[ "$printed" = "${expected%"$file_form"}$github_form" ] ||
+  { echo "  ✗ sync from a workspace choosing GitHub did not end with the GitHub form:"; echo "$printed"; exit 1; }
+manifest '{ "workspaces": { "server": ["alpha"] } }'
 
 # The same run writing a skill carries core in the reload request's context, which the session reads.
 rm -rf "$skills"
@@ -265,6 +289,10 @@ manifest '{ "workspaces": { "/": ["alpha"] } }'
 refuses 'an absolute workspace' 'outside'
 manifest '{ "workspaces": { "@root": ["alpha"] } }'
 refuses 'a workspace named @root' '@root'
+manifest '{ "workspaces": { "server": ["alpha"] }, "backlog": "gitlab" }'
+refuses 'an unknown backlog' 'takes "file" or "github"'
+manifest '{ "workspaces": { "server": ["alpha"] }, "backlog": true }'
+refuses 'a backlog that is not a string' 'takes "file" or "github"'
 rm "$p/charter.json"
 refuses 'no manifest' 'charter.json'
 manifest '{ "workspaces": { "server": ["alpha"] } }'

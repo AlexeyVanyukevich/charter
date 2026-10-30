@@ -52,7 +52,25 @@ export function readManifest(root) {
       throw new KitError(`In ${manifestFile}, workspace "${key}" is not a list of module names.`)
     }
   }
+  if (manifest.backlog !== undefined && !backlogs.includes(manifest.backlog)) {
+    throw new KitError(
+      `"backlog" in ${manifestFile} is ${JSON.stringify(manifest.backlog)}.`,
+      'It takes "file" or "github": where the project keeps what it finds and does not fix.',
+    )
+  }
   return manifest
+}
+
+// Where a project keeps its backlog, as charter.json's optional "backlog" chooses; the file when
+// it chooses none. Spec: docs/superpowers/specs/2026-10-30-backlog-switch-design.md.
+export const backlogs = ['file', 'github']
+export const backlogOf = (manifest) => manifest.backlog ?? 'file'
+export const backlogPlace = { file: 'docs/backlog.md', github: 'GitHub issues' }
+
+// The chosen form of the backlog rule. It is outside core's index, so the root CLAUDE.md's import
+// never carries it: a hook's output does, at the root as below it.
+export function backlogText(kit, backlog) {
+  return readFileSync(join(kit, 'core', 'backlog', `${backlog}.md`), 'utf8').trimEnd()
 }
 
 // The nearest directory from start upwards that holds charter.json: the root itself for a session
@@ -72,11 +90,13 @@ export function findRoot(start) {
   }
 }
 
-// core's rules in its index's order, for a session the root CLAUDE.md's import does not reach.
-export function coreText(kit) {
+// core's rules in its index's order, then the backlog form, for a session the root CLAUDE.md's
+// import does not reach.
+export function coreText(kit, backlog) {
   const index = readFileSync(join(kit, 'core', 'rules.md'), 'utf8')
   const files = [...index.matchAll(/^@(rules\/\S+\.md)\r?$/gm)].map((match) => match[1])
-  return files.map((file) => readFileSync(join(kit, 'core', file), 'utf8').trimEnd()).join('\n\n')
+  const rules = files.map((file) => readFileSync(join(kit, 'core', file), 'utf8').trimEnd())
+  return [...rules, backlogText(kit, backlog)].join('\n\n')
 }
 
 // The block's form is fixed so that no YAML parser is needed: ---, paths:, one   - "<pattern>"
