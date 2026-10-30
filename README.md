@@ -36,7 +36,7 @@ it follows are always the installed release's.
 From the private registry — the normal way:
 
 ```json
-"devDependencies": { "charter": "^3.4.1" }
+"devDependencies": { "charter": "^3.5.0" }
 ```
 
 with the registry in the consuming project's `.npmrc`:
