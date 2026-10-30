@@ -97,8 +97,10 @@ p="$(project hook)"
 rm -rf "$p/.claude/rules/charter"
 rmdir "$p/node_modules/charter"
 link "$PWD" "$p/node_modules/charter"
-( cd "$p" && CLAUDE_PROJECT_DIR="$p" sh -c "$hook" ) || fail "the hook failed with the kit installed"
+out="$( cd "$p" && CLAUDE_PROJECT_DIR="$p" sh -c "$hook" )" || fail "the hook failed with the kit installed"
 [ -f "$p/.claude/rules/charter/@root/backend/http.md" ] || fail "the hook did not sync"
+[ "$(head -n 1 <<< "$out")" = "charter: this project keeps its backlog in docs/backlog.md. core's backlog rule follows." ] ||
+  fail "the root hook did not print the file form of the backlog rule: got '$(head -n 1 <<< "$out")'"
 rm "$p/node_modules/charter"
 err="$( (cd "$p" && CLAUDE_PROJECT_DIR="$p" sh -c "$hook") 2>&1 >/dev/null )" && fail "the hook succeeded without the kit"
 grep -q 'Run npm install' <<< "$err" && ! grep -q 'Cannot find module' <<< "$err" ||
